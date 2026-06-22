@@ -23,3 +23,7 @@ managed_components/
 # Editores
 *.swp
 *~
+
+# arquivos de teste de áudio locais
+teste.wav
+*.local.wav

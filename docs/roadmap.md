@@ -7,7 +7,7 @@
 
 ## 📍 Checkpoint — sessão 2026-06-20 (retomar daqui)
 
-**Status geral:** M0 ✅ · M0.5 ✅ · **M1 código completo (validação em device pendente)** · **M2 código completo (validação live no Hub pendente)** · **próximo = M3 (E2E) após validar M1+M2**
+**Status geral:** M0 ✅ · M0.5 ✅ · **M1 código completo (validação em device pendente)** · **M2 ✅ (validado live em `hub.taskhog.win`)** · **próximo = M3 (E2E) após validar M1 no device**
 
 ### Infraestrutura operacional
 
@@ -211,10 +211,12 @@ Ver auditoria completa: `docs/decisions/003-m05-closeout.md`.
 - Idempotência: `UNIQUE(device_id, client_job_id)` + reenvio devolve job existente (200 `duplicate:true`); `X-Request-Id` por tarefa cobre restart no meio do `creating`.
 - Testes: `taskhog-hub/tests/test_m2_pipeline.py` (Whisper+Todoist mockados) — 5/5 verdes.
 
-**🚦 Critério de saída M2 (falta validação live no Hub deployado):**
-- [ ] `curl` enviando um WAV → tarefa aparece no Inbox do Todoist com o texto transcrito.
-- [ ] Reenvio do mesmo `client_job_id` **não** duplica a tarefa.
-- [ ] `/v1/status` reflete fila e processados.
+**🚦 Critério de saída M2 — ✅ validado live (2026-06-22, `hub.taskhog.win`):**
+- [x] `curl` enviando um WAV → tarefa no Inbox do Todoist com o texto transcrito ("Compra pão!", label `taskhog`).
+- [x] Reenvio do mesmo `client_job_id` → `duplicate:true`, **não** duplica a tarefa.
+- [x] `/v1/status` reflete fila e processados (`processed_today`, `last_task`).
+
+Script de validação: `taskhog-hub/scripts/test_e2e.sh`.
 
 ---
 
