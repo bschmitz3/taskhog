@@ -90,7 +90,7 @@ llm:
 
 todoist:
   token: "${TODOIST_TOKEN}"
-  base_url: "https://api.todoist.com/rest/v2"
+  base_url: "https://api.todoist.com/api/v1"   # unified API v1 (REST v2 desligada 2026-02-10)
   always_label: "taskhog"
   review_label: "revisar"
   inbox_fallback: true
@@ -276,6 +276,8 @@ class LLMProvider(Protocol):
 ---
 
 ## 10. Integração Todoist
+
+> **⚠️ Atualização 2026:** a Todoist **REST API v2** (`/rest/v2`) foi desligada em **2026-02-10**. Tudo usa a **unified API v1** (`https://api.todoist.com/api/v1`). Os exemplos abaixo mantêm os mesmos campos de payload (a forma da criação de tarefa é compatível); só muda a base URL. Endpoints de listagem (projects/labels — M4) passam a devolver `{"results": [...], "next_cursor": ...}` (paginação por cursor).
 
 ### 10.1 Cache de projetos/labels
 

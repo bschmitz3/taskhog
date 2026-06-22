@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from app.models import db
 from app.models.db import count_jobs_by_status
-from app.models.schemas import HealthResponse, StatusResponse, iso_now
+from app.models.schemas import (
+    HealthResponse,
+    LastTaskSummary,
+    StatusResponse,
+    iso_now,
+)
 from app.services import transcribe
 
 router = APIRouter(prefix="/v1", tags=["status"])
@@ -27,11 +33,15 @@ def status(request: Request) -> StatusResponse:
         for s in ("transcribing", "structuring", "creating")
     )
     errors = count_jobs_by_status(engine, "error")
+
+    last = db.get_last_task(engine)
+    last_task = LastTaskSummary(**last) if last else None
+
     return StatusResponse(
         queue_pending=queued,
         processing=processing,
-        processed_today=0,
+        processed_today=db.count_processed_today(engine),
         errors=errors,
-        last_task=None,
+        last_task=last_task,
         server_time=iso_now(),
     )

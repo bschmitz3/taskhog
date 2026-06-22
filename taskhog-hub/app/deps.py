@@ -3,14 +3,18 @@ from __future__ import annotations
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.config import HubConfig
-
 _bearer = HTTPBearer(auto_error=False)
+_tokens: list[str] = []
+
+
+def bind_tokens(tokens: list[str]) -> None:
+    """Carrega a lista de device_tokens aceitos (chamado no lifespan)."""
+    global _tokens
+    _tokens = list(tokens)
 
 
 def verify_device_token(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    config: HubConfig = Depends(),  # noqa: B008 — replaced at runtime via app.state
 ) -> str:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
@@ -19,14 +23,9 @@ def verify_device_token(
         )
 
     token = credentials.credentials
-    allowed: list[str] = getattr(verify_device_token, "_tokens", [])
-    if token not in allowed:
+    if token not in _tokens:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid device token",
         )
     return token
-
-
-def bind_tokens(tokens: list[str]) -> None:
-    verify_device_token._tokens = tokens  # type: ignore[attr-defined]

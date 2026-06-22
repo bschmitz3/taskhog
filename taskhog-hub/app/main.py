@@ -10,6 +10,7 @@ from app.config import load_config
 from app.deps import bind_tokens
 from app.models.db import create_db_engine, init_db
 from app.services import transcribe
+from app.worker import queue as worker_queue
 
 
 @asynccontextmanager
@@ -27,8 +28,11 @@ async def lifespan(app: FastAPI):
 
     transcribe.warmup_whisper_background(config)
 
+    worker_queue.start_worker(app)
+
     yield
 
+    await worker_queue.stop_worker(app)
     engine.dispose()
 
 

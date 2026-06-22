@@ -7,7 +7,7 @@
 
 ## 📍 Checkpoint — sessão 2026-06-20 (retomar daqui)
 
-**Status geral:** M0 ✅ · M0.5 ✅ · **M1 em progresso** · **próximo = M1-T6**
+**Status geral:** M0 ✅ · M0.5 ✅ · **M1 código completo (validação em device pendente)** · **M2 código completo (validação live no Hub pendente)** · **próximo = M3 (E2E) após validar M1+M2**
 
 ### Infraestrutura operacional
 
@@ -65,7 +65,9 @@ Health esperado (LAN e remoto):
 3. ~~**M1-T3**~~ ✅ — `tk_writer` drena ring → WAV 16 kHz/mono, flush incremental + patch header
 4. ~~**M1-T4**~~ ✅ — `rec_button.c`: BOOT=REC, debounce 50 ms, anti-toque &lt;500 ms, max 120 s
 5. ~~**M1-T5**~~ ✅ — `audio_beep.c`: beep curto ao gravar, duplo ao salvar (PA GPIO46)
-6. **M1-T6** — fila SD + `.job` — Spec 03 §3
+6. ~~**M1-T6**~~ ✅ — fila SD em `components/storage/queue.{c,h}` + integração no `main/rec_worker.c`; `.job` emite os 10 campos do Spec 03 §3; nomes FAT 8.3 (`q%04u.wav/.job`) com `wav_path` apontando o arquivo real
+7. ~~**M1-T7**~~ ✅ — UI reconstruída (`components/ui/`): Home/Recording/Saved/Sync, fontes SpaceMono + mascote bitmap, orientação `MIRROR_Y=1`; full refresh apenas (contador parcial e partial-refresh adiados)
+8. **Pendente:** validação em device do critério de saída M1 (gravar → WAV+`.job` no SD; reabrir WAV no PC). Recuperação por journal (órfãos / `uploading→queued`) é **M5-T1**, fora do escopo M1.
 
 ---
 
@@ -178,8 +180,8 @@ Ver auditoria completa: `docs/decisions/003-m05-closeout.md`.
 | M1-T3 | `wav_writer`: header 16k/16bit/mono, flush incremental, **patch do header** ao finalizar | M | Spec 01 §8.2 | ✅ |
 | M1-T4 | Botão REC: detecção segurar/soltar, debounce, **anti-toque <0,5s**, limite **120s** | M | Spec 01 §8.3 | ✅ |
 | M1-T5 | Beeps (início/duplo) ligando `PA_EN` só no instante (cuidado GPIO46 strapping) | S | Spec 01 §8.1, §8.3 | ✅ |
-| M1-T6 | Fila no SD: `queue_enqueue/peek/mark/complete`, criar `.job` (schema Spec 03 §3) | M | Spec 01 §9.2, Spec 03 §3 | |
-| M1-T7 | UI: telas **T1 Home**, **T2 Recording** (contador parcial), **T3 Saved** | M | Spec 01 §12.2 | |
+| M1-T6 | Fila no SD: `queue_enqueue/peek/mark/complete`, criar `.job` (schema Spec 03 §3) | M | Spec 01 §9.2, Spec 03 §3 | ✅ |
+| M1-T7 | UI: telas **T1 Home**, **T2 Recording**, **T3 Saved** (contador parcial / partial-refresh adiados) | M | Spec 01 §12.2 | ✅ |
 
 **🚦 Critério de saída M1:**
 - [ ] Segurar REC → gravando em ≤300ms; soltar → WAV válido no SD + `.job` criado.
@@ -193,16 +195,23 @@ Ver auditoria completa: `docs/decisions/003-m05-closeout.md`.
 
 **Objetivo:** receber um WAV (via `curl`), transcrever e criar uma tarefa **crua** (texto puro) no **Inbox** do Todoist. Sem LLM ainda.
 
-| # | Tarefa | Esforço | Ref |
-|---|---|:---:|---|
-| M2-T1 | FastAPI + auth Bearer + `POST /v1/recordings` (multipart), salva WAV, cria job `queued` | M | Spec 02 §5.1, §6 |
-| M2-T2 | Worker `asyncio` consumindo `jobs` + persistência de transições | M | Spec 02 §7 |
-| M2-T3 | Integração **faster-whisper** (`transcribe`), `language=pt`, `vad_filter` | M | Spec 02 §8 |
-| M2-T4 | Cliente Todoist mínimo: criar tarefa com o transcript no Inbox + label `taskhog` | M | Spec 02 §10.2 |
-| M2-T5 | `GET /v1/recordings/{id}`, `GET /v1/status`, `GET /v1/health` | M | Spec 02 §5.2–5.4 |
-| M2-T6 | Idempotência por `(device_id, client_job_id)` | S | Spec 02 §5.1, Spec 03 §10 |
+| # | Tarefa | Esforço | Ref | Status |
+|---|---|:---:|---|:---:|
+| M2-T1 | FastAPI + auth Bearer + `POST /v1/recordings` (multipart), salva WAV, cria job `queued` | M | Spec 02 §5.1, §6 | ✅ |
+| M2-T2 | Worker `asyncio` consumindo `jobs` + persistência de transições | M | Spec 02 §7 | ✅ |
+| M2-T3 | Integração **faster-whisper** (`transcribe`), `language=pt`, `vad_filter` | M | Spec 02 §8 | ✅ |
+| M2-T4 | Cliente Todoist mínimo: criar tarefa com o transcript no Inbox + label `taskhog` | M | Spec 02 §10.2 | ✅ |
+| M2-T5 | `GET /v1/recordings/{id}`, `GET /v1/status`, `GET /v1/health` | M | Spec 02 §5.2–5.4 | ✅ |
+| M2-T6 | Idempotência por `(device_id, client_job_id)` | S | Spec 02 §5.1, Spec 03 §10 | ✅ |
 
-**🚦 Critério de saída M2:**
+**Notas de implementação (2026-06-22):**
+- Caminho **cru** (sem LLM): `queued → transcribing → creating → done`; tarefa vai pro Inbox com label `taskhog` (LLM/roteamento são M4).
+- **Todoist unified API v1** (`/api/v1`) — REST v2 desligada 2026-02-10; `hub.yaml`/Spec 02 §4/§10 atualizados.
+- Worker `asyncio` single-job; fila persiste no DB; recovery no boot (`reset_stuck_jobs`: in-flight → `queued`).
+- Idempotência: `UNIQUE(device_id, client_job_id)` + reenvio devolve job existente (200 `duplicate:true`); `X-Request-Id` por tarefa cobre restart no meio do `creating`.
+- Testes: `taskhog-hub/tests/test_m2_pipeline.py` (Whisper+Todoist mockados) — 5/5 verdes.
+
+**🚦 Critério de saída M2 (falta validação live no Hub deployado):**
 - [ ] `curl` enviando um WAV → tarefa aparece no Inbox do Todoist com o texto transcrito.
 - [ ] Reenvio do mesmo `client_job_id` **não** duplica a tarefa.
 - [ ] `/v1/status` reflete fila e processados.

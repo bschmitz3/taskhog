@@ -21,7 +21,7 @@ llm:
 
 todoist:
   token: "${TODOIST_TOKEN}"
-  base_url: "https://api.todoist.com/rest/v2"
+  base_url: "https://api.todoist.com/api/v1"  # REST v2 desligada 2026-02-10
   always_label: "taskhog"
   review_label: "revisar"
   inbox_fallback: true

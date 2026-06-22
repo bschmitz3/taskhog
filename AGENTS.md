@@ -38,8 +38,9 @@ docs/           # especificações e decisões
 
 1. **M0** — bring-up hardware ✅
 2. **M0.5** — scaffold + contratos + infra Hub ✅ (`docs/decisions/003-m05-closeout.md`)
-3. **M1** — captura local offline ← **próximo** (começar por **M1-T1** state machine)
-4. Tracks A (firmware) e B (hub) em paralelo a partir de M1/M2 até **M3**
+3. **M1** — captura local offline: **código completo** (T1–T7); falta **validar no device** (gravar → WAV+`.job`; reabrir WAV no PC)
+4. **M2** — Hub MVP (Track B): **código completo** (caminho cru, Todoist v1, idempotência; testes em `taskhog-hub/tests/`); falta **validação live** (`curl` WAV → tarefa no Inbox) no Hub deployado
+5. **M3** — integração E2E (device → Hub → Todoist) ← **próximo** após validar M1+M2
 
 **URLs Hub:** LAN `http://192.168.100.227:8088` · remoto `https://hub.taskhog.win`
 
