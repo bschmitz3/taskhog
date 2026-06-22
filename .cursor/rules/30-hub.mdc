@@ -1,0 +1,33 @@
+---
+description: Taskhog — convenções do Hub backend (FastAPI)
+globs: taskhog-hub/**,**/app/**/*.py
+alwaysApply: false
+---
+
+# Hub (Spec 02)
+
+- Python 3.11+, FastAPI, SQLite WAL, Docker Compose
+- Whisper local (`faster-whisper`); LLM cloud OpenAI-compatible (JSON mode)
+
+## API
+
+- `POST /v1/recordings` — multipart (audio + metadata), 202, idempotente
+- `GET /v1/recordings/{id}`, `/v1/status`, `/v1/health`
+- Auth: `Authorization: Bearer <device_token>`
+
+## Pipeline
+
+`queued → transcribing → structuring → creating → done`
+Cada transição persiste no DB (recuperação após restart).
+
+## Todoist
+
+- Cache de projetos/labels injetado no prompt LLM
+- `priority` API: 4=alta, 1=normal — **invertido vs UI**
+- Baixa confiança → Inbox + label `revisar`
+- Sempre label `taskhog`; subtarefas via `parent_id`
+
+## Config
+
+`hub.yaml` + env (`.env`); segredos nunca commitados.
+Acesso remoto: self-hosted + túnel HTTPS (ver `docs/decisions/001-initial-decisions.md`).

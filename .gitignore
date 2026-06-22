@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Ferramentas (assets são gerados por gen_assets.py e versionados; o venv não)
+tools/.venv/
+
+# ESP-IDF (também coberto por taskhog-fw/.gitignore)
+build/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+managed_components/
+
+# Hub
+.env
+
+# Editores
+*.swp
+*~

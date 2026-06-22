@@ -1,0 +1,34 @@
+---
+description: Taskhog — contratos de dados (device ↔ Hub ↔ Todoist)
+globs: docs/specs/03-data-contracts.md,**/schemas.py,**/*.job,**/hub.yaml
+alwaysApply: false
+---
+
+# Contratos (Spec 03)
+
+**Spec 03 prevalece** sobre Spec 01/02 em divergências de formato.
+
+## Upload metadata (obrigatório)
+
+`client_job_id`, `device_id`, `rtc_timestamp`, `rtc_valid`, `duration_s`
+
+## Áudio
+
+WAV PCM 16 kHz / 16-bit / mono.
+
+## LLM output
+
+JSON com `tasks[]`, `needs_review`, `project_confidence` (0..1).
+- `priority` API Todoist: **4 = mais alta** (invertido vs UI).
+- `due_string` em PT natural; Hub adiciona `due_lang=pt`.
+- Labels `taskhog`/`revisar` são adicionadas pelo Hub, não pela LLM.
+
+## Estados
+
+- Device job: `queued → uploading → uploaded → processing → done | error`
+- Hub job: `queued → transcribing → structuring → creating → done | error`
+
+## Idempotência
+
+- Upload: `(device_id, client_job_id)`
+- Todoist: `idempotency_key` = `recording_id` + índice da task

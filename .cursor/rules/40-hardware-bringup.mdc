@@ -1,0 +1,34 @@
+---
+description: Taskhog — bring-up hardware Waveshare ESP32-S3 e-Paper 1.54 V2
+globs: docs/hardware/**,**/HARDWARE_NOTES.md
+alwaysApply: false
+---
+
+# Hardware Bring-up (M0)
+
+Placa: ESP32-S3-PICO-1-N8R8, e-Paper 200×200 (SSD1681 provável), sem touch.
+Bateria: **1000 mAh** Li-Po 1S.
+
+## 🔴 Gate M0-T4 (bloqueante)
+
+Init ES8311 + I2S → gravar WAV no SD → ouvir no PC.
+Se falhar: plano B mic I2S/PDM externo nos headers.
+
+## I2C esperado
+
+| Device | Addr |
+|---|---|
+| ES8311 | 0x18 |
+| SHTC3 | 0x70 |
+| PCF85063 | scan |
+
+## Pinos confirmados (esquema — validar fisicamente)
+
+e-Paper: BUSY=21, RST=11, DC=13, CS=12, SCLK=10, MOSI=8, EN=6
+SD SPI: CLK=41, MISO=40, MOSI=39 (CS incerto — validar)
+I2S: MCLK=14, SCLK=15, ASDOUT=16, LRCK=17, DSDIN=18
+BAT_ADC=4, RTC_INT=5, PA_EN=42, PA_CTRL=46
+
+## Entregável M0
+
+`docs/hardware/HARDWARE_NOTES.md` com pinos reais, curva bateria, divergências vs Waveshare.

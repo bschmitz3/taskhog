@@ -1,0 +1,34 @@
+server:
+  bind: "0.0.0.0:8088"
+  device_tokens:
+    - "${TASKHOG01_TOKEN}"
+
+whisper:
+  model: "medium"
+  device: "cpu"
+  compute_type: "int8"
+  language: "pt"
+  vad_filter: true
+
+llm:
+  provider: "cloud"
+  model: "${LLM_MODEL}"
+  endpoint: "${LLM_ENDPOINT}"
+  api_key: "${LLM_API_KEY}"
+  json_strict: true
+  max_retries: 2
+  confidence_threshold: 0.75
+
+todoist:
+  token: "${TODOIST_TOKEN}"
+  base_url: "https://api.todoist.com/rest/v2"
+  always_label: "taskhog"
+  review_label: "revisar"
+  inbox_fallback: true
+  cache_refresh_min: 60
+  due_lang: "pt"
+
+storage:
+  audio_dir: "/data/audio"
+  retain_audio_days: 7
+  db_path: "/data/taskhog.db"

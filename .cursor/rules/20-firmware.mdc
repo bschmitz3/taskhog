@@ -1,0 +1,37 @@
+---
+description: Taskhog — convenções do firmware ESP-IDF
+globs: taskhog-fw/**,**/components/**/*.c,**/components/**/*.h
+alwaysApply: false
+---
+
+# Firmware (Spec 01)
+
+- ESP-IDF ≥5.2, target `esp32s3`, PSRAM octal, USB-CDC
+- Estrutura: `main/` + `components/{power,audio,storage,net,provisioning,rtc,ui,config,ota}/`
+
+## Estados
+
+`BOOT → IDLE → RECORDING → FINALIZING → CONFIRM → SYNC | DEEP_SLEEP`
+Também: `PROVISION`, `SAFE_OFF`, `OTA`
+
+## Áudio
+
+- ES8311 @ I2C `0x18`, I2S std 16k/16bit/mono
+- Ring buffer PSRAM → `wav_writer` com patch de header
+- REC→gravando ≤300ms; anti-toque <0.5s; limite 120s
+- **Nunca** `tk_sync` (Wi-Fi) e `tk_audio` simultâneos
+
+## Storage
+
+- SD montado sob demanda; FAT32; journal append-only para recovery
+- Fila: `.job` + `.wav` em `queue/` (schema Spec 03 §3)
+
+## Energia
+
+- Deep sleep default; wake: REC (ext0), RTC_INT GPIO5 (ext1), USB, timer
+- Bateria 1000 mAh; gate: Normal >25%, Economia 10–25%, Crítico 3–10%, Shutdown <3%
+
+## GPIOs críticos (validar no M0)
+
+REC/NAV: confirmar em `HARDWARE_NOTES.md` — GPIO17/18 candidatos.
+`PA_CTRL` GPIO46 = strapping; manipular só após boot.

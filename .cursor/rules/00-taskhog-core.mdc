@@ -1,0 +1,29 @@
+---
+description: Taskhog — regras centrais do projeto (sempre aplicar)
+alwaysApply: true
+---
+
+# Taskhog — Core
+
+Dispositivo ESP32-S3 + Hub self-hosted → Todoist. Monorepo: `taskhog-fw/` + `taskhog-hub/`.
+
+## Docs canônicos
+
+- **PRD:** `docs/prd/PRD_v1.0.md`
+- Contratos: `docs/specs/03-data-contracts.md` (**prevalece** sobre Spec 01/02)
+- Firmware: `docs/specs/01-device-firmware.md`
+- Hub: `docs/specs/02-hub-backend.md`
+- Roadmap: `docs/roadmap.md` (trabalhar por milestone, critério de saída verde)
+- Hardware: `docs/hardware/waveshare-esp32-s3-epaper-1.54-v2.md`
+
+## Regras invioláveis
+
+1. Captura **nunca** se perde (offline-first).
+2. Mudança de contrato → **Spec 03 primeiro**, depois fw + hub.
+3. **M0 gate de áudio** antes de firmware de produto.
+4. Firmware sem IA; inteligência só no Hub.
+5. Idempotência: `(device_id, client_job_id)` + `idempotency_key` por tarefa.
+
+## Prompt pattern
+
+> "Implemente **M{x}-T{y}** do roadmap seguindo **Spec {nn} §{sec}**. Escopo mínimo; não tocar outros módulos."

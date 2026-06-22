@@ -1,0 +1,16 @@
+services:
+  taskhog-hub:
+    build: .
+    env_file: .env
+    environment:
+      HF_HOME: /data/huggingface
+      HUB_CONFIG: /app/hub.yaml
+    volumes:
+      - ./hub.yaml:/app/hub.yaml:ro
+      - taskhog-data:/data
+    ports:
+      - "8088:8088"
+    restart: unless-stopped
+
+volumes:
+  taskhog-data:
