@@ -27,6 +27,9 @@ esp_err_t widgets_deinit(void);
 
 esp_err_t widget_read_status(widget_status_t *out);
 
+/* Estado de Wi-Fi exibido na barra de status (atualizado pela camada de rede). */
+void widget_set_wifi_state(wifi_state_t state);
+
 /* Barra de status superior: hora à esquerda, wifi+bateria+% à direita. */
 void widget_status_bar(const widget_status_t *st);
 

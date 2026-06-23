@@ -7,7 +7,7 @@
 
 ## 📍 Checkpoint — sessão 2026-06-20 (retomar daqui)
 
-**Status geral:** M0 ✅ · M0.5 ✅ · **M1 código completo (validação em device pendente)** · **M2 ✅ (validado live em `hub.taskhog.win`)** · **próximo = M3 (E2E) após validar M1 no device**
+**Status geral:** M0 ✅ · M0.5 ✅ · **M1 código completo** · **M2 ✅ (validado live)** · **M3 código completo (Wi-Fi+uploader+sync; build verde, validação em device pendente)** · **próximo = flashar e validar M1+M3 no device (E2E)**
 
 ### Infraestrutura operacional
 
@@ -224,15 +224,23 @@ Script de validação: `taskhog-hub/scripts/test_e2e.sh`.
 
 **Objetivo:** conectar Track A + Track B. Gravar no device → tarefa no Todoist (ainda no Inbox, sem inteligência). Online apenas.
 
-| # | Tarefa | Esforço | Ref |
-|---|---|:---:|---|
-| M3-T1 | Wi-Fi STA: conectar a 1 rede fixa (hardcoded por enquanto), `GET /v1/health` | M | Spec 01 §10.1 |
-| M3-T2 | `http_uploader`: `POST` multipart (wav + metadata), streaming do SD, TLS | L | Spec 01 §10.2, Spec 03 §2 |
-| M3-T3 | Sync básico pós-captura: se há rede → envia; senão mantém na fila | M | Spec 01 §10.3 |
-| M3-T4 | Device consulta status e atualiza contadores na Home (T1) | S | Spec 01 §10.3, §12 |
-| M3-T5 | Teste E2E manual: gravar 5 capturas → 5 tarefas no Todoist | S | — |
+| # | Tarefa | Esforço | Ref | Status |
+|---|---|:---:|---|:---:|
+| M3-T1 | Wi-Fi STA: conectar a 1 rede fixa (hardcoded por enquanto), `GET /v1/health` | M | Spec 01 §10.1 | ✅ |
+| M3-T2 | `http_uploader`: `POST` multipart (wav + metadata), streaming do SD, TLS | L | Spec 01 §10.2, Spec 03 §2 | ✅ |
+| M3-T3 | Sync básico pós-captura: se há rede → envia; senão mantém na fila | M | Spec 01 §10.3 | ✅ |
+| M3-T4 | Device consulta status e atualiza contadores na Home (T1) | S | Spec 01 §10.3, §12 | ✅ |
+| M3-T5 | Teste E2E manual: gravar 5 capturas → 5 tarefas no Todoist | S | — | ⏳ device |
 
-**🚦 Critério de saída M3:**
+**Notas de implementação (2026-06-22) — código completo, validação em device pendente:**
+- `components/net/` deixou de ser stub: `wifi_sta` (STA on-demand, event group, ícone na barra de status), `http_uploader` (health + upload multipart com streaming do WAV do SD, TLS via cert bundle Mozilla), `sync_engine` (task + drenagem snapshot da fila).
+- **Config via Kconfig** (`main/Kconfig.projbuild` → menu "Taskhog"): `TASKHOG_WIFI_SSID/PASSWORD`, `TASKHOG_HUB_URL` (default `https://hub.taskhog.win`), `TASKHOG_DEVICE_TOKEN`, `TASKHOG_SYNC_MAX_ATTEMPTS`. Segredos ficam no `sdkconfig` (gitignored), setados com `idf.py menuconfig`.
+- Drenagem (`sync_engine_drain`): conecta Wi-Fi → `health` → snapshot de pendentes (FIFO, ids) → por job `mark UPLOADING` → upload → `mark UPLOADED`+`hub_recording_id` ou (≥max) `ERROR` / senão volta a `QUEUED`. Sem starvation (snapshot, não peek-lowest).
+- Disparo: ao entrar em `SYNC` → `sync_engine_trigger`; auto-sync após `CONFIRM`/`BOOT` quando há fila pendente (sem loop: guardado por estado anterior). Conclusão → `SYNC_DONE`.
+- Idempotência ponta-a-ponta: device envia `client_job_id`; Hub deduplica (validado no M2).
+- **Fora do escopo M3** (adiado): NTP→RTC (§10.4), multi-AP/`wifi.json` (§10.1 usa rede fixa), backoff exponencial fino (M3 reenvia no próximo trigger), polling de `/v1/recordings/{id}` p/ mover `sent/` (M5).
+
+**🚦 Critério de saída M3 (validar no device):**
 - [ ] Falar no device → tarefa no Todoist em ≤20s (online).
 - [ ] Sem rede → fica na fila; ao voltar a rede → envia (drenagem simples já funciona).
 - [ ] Contadores da Home batem com o Hub.

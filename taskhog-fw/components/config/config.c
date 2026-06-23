@@ -32,3 +32,44 @@ const char *config_fw_version(void)
     }
     return "0.1.0";
 }
+
+#ifndef CONFIG_TASKHOG_WIFI_SSID
+#define CONFIG_TASKHOG_WIFI_SSID ""
+#endif
+#ifndef CONFIG_TASKHOG_WIFI_PASSWORD
+#define CONFIG_TASKHOG_WIFI_PASSWORD ""
+#endif
+#ifndef CONFIG_TASKHOG_HUB_URL
+#define CONFIG_TASKHOG_HUB_URL "https://hub.taskhog.win"
+#endif
+#ifndef CONFIG_TASKHOG_DEVICE_TOKEN
+#define CONFIG_TASKHOG_DEVICE_TOKEN ""
+#endif
+#ifndef CONFIG_TASKHOG_SYNC_MAX_ATTEMPTS
+#define CONFIG_TASKHOG_SYNC_MAX_ATTEMPTS 5
+#endif
+
+const char *config_wifi_ssid(void)
+{
+    return CONFIG_TASKHOG_WIFI_SSID;
+}
+
+const char *config_wifi_password(void)
+{
+    return CONFIG_TASKHOG_WIFI_PASSWORD;
+}
+
+const char *config_hub_url(void)
+{
+    return CONFIG_TASKHOG_HUB_URL;
+}
+
+const char *config_device_token(void)
+{
+    return CONFIG_TASKHOG_DEVICE_TOKEN;
+}
+
+int config_sync_max_attempts(void)
+{
+    return CONFIG_TASKHOG_SYNC_MAX_ATTEMPTS;
+}

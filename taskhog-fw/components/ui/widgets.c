@@ -18,6 +18,13 @@ static const char *WEEKDAY_PT[] = {"dom", "seg", "ter", "qua", "qui", "sex", "sa
 static const char *MONTH_PT[] = {"jan", "fev", "mar", "abr", "mai", "jun",
                                  "jul", "ago", "set", "out", "nov", "dez"};
 
+static volatile wifi_state_t s_wifi_state = WIFI_DOWN;
+
+void widget_set_wifi_state(wifi_state_t state)
+{
+    s_wifi_state = state;
+}
+
 esp_err_t widgets_init(void)
 {
     return ESP_OK;
@@ -34,7 +41,7 @@ esp_err_t widget_read_status(widget_status_t *out)
         return ESP_ERR_INVALID_ARG;
     }
     memset(out, 0, sizeof(*out));
-    out->wifi = WIFI_DOWN;
+    out->wifi = s_wifi_state;
 
     battery_reading_t bat = {0};
     if (battery_read(&bat) == ESP_OK && bat.valid) {

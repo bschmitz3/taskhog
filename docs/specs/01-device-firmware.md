@@ -307,6 +307,14 @@ sync_run():
 - Em SYNC com rede: `esp_sntp` → ao obter hora, escrever no PCF85063 e limpar flag `rtc_valid=false`.
 - Capturas offline carimbam com o RTC; se `rtc_valid=false`, o Hub pode ajustar pelo horário de chegada (ver Spec 03).
 
+### 10.5 Status de implementação (M3 — código completo, validação em device pendente)
+
+- `wifi_sta`: STA conecta sob demanda à rede do Kconfig (`TASKHOG_WIFI_SSID/PASSWORD`); event group + retry; publica o ícone de Wi-Fi na barra de status (`widget_set_wifi_state`).
+- `http_uploader`: `http_uploader_health()` e `http_uploader_upload()` (multipart `metadata`+`audio`, streaming do WAV do SD em blocos de 1 KB, TLS via `esp_crt_bundle_attach`). Metadata conforme Spec 03 §2.
+- `sync_engine`: task própria; `sync_engine_drain()` faz connect → health → snapshot FIFO de pendentes → upload por job com transições no `.job`. Disparada ao entrar em `SYNC` e automaticamente após `CONFIRM`/`BOOT` se há fila.
+- Configuração por `main/Kconfig.projbuild` (menu **Taskhog**): SSID, senha, `HUB_URL`, `DEVICE_TOKEN`, `SYNC_MAX_ATTEMPTS`. SSID vazio = sync desligado (device segue gravando offline).
+- **Pendências (pós-M3):** §10.1 multi-AP/`wifi.json`; §10.4 NTP→RTC; backoff exponencial fino; confirmação `done` do Hub para mover WAV/`.job` p/ `sent/` (M5).
+
 ---
 
 ## 11. Provisionamento (portal cativo)

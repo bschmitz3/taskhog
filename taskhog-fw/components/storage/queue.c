@@ -446,6 +446,90 @@ esp_err_t queue_peek_next(job_t *out)
     return ESP_OK;
 }
 
+esp_err_t queue_get(const char *id, job_t *out)
+{
+    if (id == NULL || out == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return find_job_by_id(id, out);
+}
+
+esp_err_t queue_mark_uploaded(const char *id, const char *hub_recording_id)
+{
+    job_t job;
+    ESP_RETURN_ON_ERROR(find_job_by_id(id, &job), TAG, "job não encontrado");
+
+    job.state = JOB_STATE_UPLOADED;
+    job.last_error[0] = '\0';
+    if (hub_recording_id != NULL) {
+        strncpy(job.hub_recording_id, hub_recording_id, sizeof(job.hub_recording_id) - 1);
+        job.hub_recording_id[sizeof(job.hub_recording_id) - 1] = '\0';
+    }
+    return write_job_file(&job);
+}
+
+int queue_list_pending(char ids[][24], int max)
+{
+    if (ids == NULL || max <= 0) {
+        return 0;
+    }
+
+    DIR *dir = opendir(QUEUE_DIR);
+    if (dir == NULL) {
+        return 0;
+    }
+
+    uint16_t seqs[64];
+    char tmp_ids[64][24];
+    int cap = max < 64 ? max : 64;
+    int count = 0;
+
+    struct dirent *ent;
+    char path[PATH_MAX_LOCAL];
+    job_t job;
+    while ((ent = readdir(dir)) != NULL && count < cap) {
+        unsigned int n = 0;
+        if (sscanf(ent->d_name, "q%04u.job", &n) != 1) {
+            continue;
+        }
+        if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
+            continue;
+        }
+        if (read_job_file(path, &job) != ESP_OK) {
+            continue;
+        }
+        if (job.state != JOB_STATE_QUEUED && job.state != JOB_STATE_ERROR) {
+            continue;
+        }
+        seqs[count] = (uint16_t)n;
+        strncpy(tmp_ids[count], job.id, sizeof(tmp_ids[count]) - 1);
+        tmp_ids[count][sizeof(tmp_ids[count]) - 1] = '\0';
+        count++;
+    }
+    closedir(dir);
+
+    /* Insertion sort por seq (FIFO). */
+    for (int i = 1; i < count; i++) {
+        uint16_t s = seqs[i];
+        char id[24];
+        strncpy(id, tmp_ids[i], sizeof(id));
+        int j = i - 1;
+        while (j >= 0 && seqs[j] > s) {
+            seqs[j + 1] = seqs[j];
+            strncpy(tmp_ids[j + 1], tmp_ids[j], sizeof(tmp_ids[j + 1]));
+            j--;
+        }
+        seqs[j + 1] = s;
+        strncpy(tmp_ids[j + 1], id, sizeof(tmp_ids[j + 1]));
+    }
+
+    for (int i = 0; i < count; i++) {
+        strncpy(ids[i], tmp_ids[i], 24 - 1);
+        ids[i][24 - 1] = '\0';
+    }
+    return count;
+}
+
 esp_err_t queue_mark(const char *id, job_state_t state, const char *err)
 {
     job_t job;

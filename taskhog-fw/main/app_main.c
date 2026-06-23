@@ -40,6 +40,12 @@ static const char *TAG = "taskhog";
 ESP_EVENT_DEFINE_BASE(TASKHOG_EVENTS);
 
 static esp_event_handler_instance_t s_state_bridge_instance;
+static taskhog_state_t s_prev_state = TASKHOG_STATE_BOOT;
+
+static void on_sync_done(void)
+{
+    state_machine_post_event(TASKHOG_EVENT_SYNC_DONE, NULL);
+}
 
 static esp_err_t init_all_stubs(void)
 {
@@ -84,6 +90,18 @@ static void taskhog_state_bridge(void *handler_arg,
     taskhog_state_t state = *(const taskhog_state_t *)event_data;
     rec_worker_on_state_changed(state);
     screens_on_state_changed((screen_state_t)state);
+
+    if (state == TASKHOG_STATE_SYNC) {
+        sync_engine_trigger();
+    } else if (state == TASKHOG_STATE_IDLE &&
+               (s_prev_state == TASKHOG_STATE_CONFIRM || s_prev_state == TASKHOG_STATE_BOOT)) {
+        /* Sync best-effort após captura ou no boot. Não fazemos I/O de SD aqui
+         * (handler roda na task do event loop com stack pequena); a task de sync
+         * varre a fila com segurança e retorna rápido se não houver pendências. */
+        state_machine_post_event(TASKHOG_EVENT_SYNC_REQUEST, NULL);
+    }
+
+    s_prev_state = state;
 }
 
 void app_main(void)
@@ -103,6 +121,7 @@ void app_main(void)
                                                         NULL,
                                                         &s_state_bridge_instance));
     ESP_ERROR_CHECK(init_all_stubs());
+    sync_engine_set_done_cb(on_sync_done);
 
 #if EPD_CALIBRATION
     ESP_LOGW(TAG, "EPD_CALIBRATION ativo — desenhando padrao de orientacao e parando boot");

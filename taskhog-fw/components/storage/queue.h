@@ -54,6 +54,15 @@ esp_err_t queue_peek_next(job_t *out);
 esp_err_t queue_mark(const char *id, job_state_t state, const char *err);
 esp_err_t queue_complete(const char *id);
 
+/** Lê um job pelo id. */
+esp_err_t queue_get(const char *id, job_t *out);
+
+/** Marca UPLOADED e grava o hub_recording_id. */
+esp_err_t queue_mark_uploaded(const char *id, const char *hub_recording_id);
+
+/** Snapshot dos ids pendentes (QUEUED/ERROR) por ordem FIFO; retorna a contagem. */
+int queue_list_pending(char ids[][24], int max);
+
 int queue_pending_count(void);
 int queue_error_count(void);
 

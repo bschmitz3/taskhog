@@ -1,0 +1,35 @@
+menu "Taskhog"
+
+    config TASKHOG_WIFI_SSID
+        string "Wi-Fi SSID (M3: rede fixa)"
+        default ""
+        help
+            SSID da rede usada para sincronizar com o Hub. Vazio = sync desligado
+            (o device continua gravando offline normalmente).
+
+    config TASKHOG_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+        help
+            Senha WPA2. Vazio = rede aberta.
+
+    config TASKHOG_HUB_URL
+        string "Hub base URL"
+        default "https://hub.taskhog.win"
+        help
+            Base do Hub (sem barra final). Ex.: https://hub.taskhog.win ou
+            http://192.168.100.227:8088.
+
+    config TASKHOG_DEVICE_TOKEN
+        string "Device bearer token"
+        default ""
+        help
+            Token enviado em Authorization: Bearer. Deve casar com device_tokens
+            no hub.yaml.
+
+    config TASKHOG_SYNC_MAX_ATTEMPTS
+        int "Máx. tentativas de upload antes de marcar erro"
+        default 5
+        range 1 50
+
+endmenu
