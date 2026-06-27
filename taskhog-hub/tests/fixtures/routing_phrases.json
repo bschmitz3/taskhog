@@ -1,0 +1,643 @@
+{
+  "version": 1,
+  "description": "Conjunto M4-T8 — frases PT-BR reais para medir roteamento (Spec 02 §11).",
+  "threshold": 0.65,
+  "cases": [
+    {
+      "id": "compras-01",
+      "transcript": "comprar pão",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar pão",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.88,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "compras-02",
+      "transcript": "passar no mercado comprar leite e ovos",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar leite e ovos no mercado",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.9,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "compras-03",
+      "transcript": "comprar remédio na farmácia",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar remédio na farmácia",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.85,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "compras-04",
+      "transcript": "supermercado amanhã comprar frutas",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar frutas no supermercado",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.87,
+          "due_string": "amanhã",
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "compras-05",
+      "transcript": "comprar papel higiênico",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar papel higiênico",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.86,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "compras-06",
+      "transcript": "preciso de café e açúcar",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar café e açúcar",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.82,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "compras-07",
+      "transcript": "comprar ração pro cachorro",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar ração para o cachorro",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.84,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "compras-08",
+      "transcript": "lista do mercado: arroz feijão e óleo",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar arroz, feijão e óleo",
+          "project_suggestion": "Compras",
+          "project_confidence": 0.9,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-01",
+      "transcript": "criar apresentação para o banco do brasil quinta-feira prioridade alta",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Criar apresentação para o Banco do Brasil",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.92,
+          "due_string": "quinta-feira",
+          "priority": 4,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-02",
+      "transcript": "reunião com cliente amanhã às 10",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Reunião com cliente",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.88,
+          "due_string": "amanhã às 10h",
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-03",
+      "transcript": "enviar proposta comercial até sexta",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Enviar proposta comercial",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.9,
+          "due_string": "sexta-feira",
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-04",
+      "transcript": "revisar contrato do projeto novo",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Revisar contrato do projeto novo",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.86,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-05",
+      "transcript": "preparar demo do produto para o investidor",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Preparar demo do produto para o investidor",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.91,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-06",
+      "transcript": "ligar pro fornecedor do escritório",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Ligar para o fornecedor do escritório",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.75,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-07",
+      "transcript": "atualizar planilha de vendas do trimestre",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Atualizar planilha de vendas do trimestre",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.83,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magie-08",
+      "transcript": "follow up email parceria estratégica",
+      "expected_project": "Magie",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Follow-up email parceria estratégica",
+          "project_suggestion": "Magie",
+          "project_confidence": 0.87,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "personal-01",
+      "transcript": "ligar pro contador sobre o imposto de renda",
+      "expected_project": "Personal",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Ligar para o contador sobre o imposto de renda",
+          "project_suggestion": "Personal",
+          "project_confidence": 0.88,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "personal-02",
+      "transcript": "marcar consulta com o dentista",
+      "expected_project": "Personal",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Marcar consulta com o dentista",
+          "project_suggestion": "Personal",
+          "project_confidence": 0.9,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "personal-03",
+      "transcript": "pagar conta de luz até dia 10",
+      "expected_project": "Personal",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Pagar conta de luz",
+          "project_suggestion": "Personal",
+          "project_confidence": 0.85,
+          "due_string": "dia 10",
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "personal-04",
+      "transcript": "comprar presente de aniversário da mãe",
+      "expected_project": "Personal",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Comprar presente de aniversário da mãe",
+          "project_suggestion": "Personal",
+          "project_confidence": 0.8,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "personal-05",
+      "transcript": "renovar carteira de motorista",
+      "expected_project": "Personal",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Renovar carteira de motorista",
+          "project_suggestion": "Personal",
+          "project_confidence": 0.86,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "personal-06",
+      "transcript": "agendar exame de sangue",
+      "expected_project": "Personal",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Agendar exame de sangue",
+          "project_suggestion": "Personal",
+          "project_confidence": 0.89,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magielive-01",
+      "transcript": "preparar live de lançamento sábado",
+      "expected_project": "MagieLive",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Preparar live de lançamento",
+          "project_suggestion": "MagieLive",
+          "project_confidence": 0.91,
+          "due_string": "sábado",
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magielive-02",
+      "transcript": "testar stream antes da transmissão",
+      "expected_project": "MagieLive",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Testar stream antes da transmissão",
+          "project_suggestion": "MagieLive",
+          "project_confidence": 0.88,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magielive-03",
+      "transcript": "gravar conteúdo ao vivo com a equipe quinta",
+      "expected_project": "MagieLive",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Gravar conteúdo ao vivo com a equipe",
+          "project_suggestion": "MagieLive",
+          "project_confidence": 0.87,
+          "due_string": "quinta-feira",
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "magielive-04",
+      "transcript": "configurar câmera para a live de hoje",
+      "expected_project": "MagieLive",
+      "expected_routed_to": "project",
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [{
+          "content": "Configurar câmera para a live",
+          "project_suggestion": "MagieLive",
+          "project_confidence": 0.9,
+          "due_string": "hoje",
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "inbox-01",
+      "transcript": "aquela coisa de antes",
+      "expected_project": null,
+      "expected_routed_to": "inbox",
+      "structured": {
+        "language": "pt",
+        "needs_review": true,
+        "tasks": [{
+          "content": "aquela coisa de antes",
+          "project_suggestion": null,
+          "project_confidence": 0.1,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": "transcrição ambígua"
+        }]
+      }
+    },
+    {
+      "id": "inbox-02",
+      "transcript": "lembrar depois",
+      "expected_project": null,
+      "expected_routed_to": "inbox",
+      "structured": {
+        "language": "pt",
+        "needs_review": true,
+        "tasks": [{
+          "content": "Lembrar depois",
+          "project_suggestion": null,
+          "project_confidence": 0.15,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "inbox-03",
+      "transcript": "hmm não sei",
+      "expected_project": null,
+      "expected_routed_to": "inbox",
+      "structured": {
+        "language": "pt",
+        "needs_review": true,
+        "tasks": [{
+          "content": "hmm não sei",
+          "project_suggestion": null,
+          "project_confidence": 0.05,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": "intenção unclear"
+        }]
+      }
+    },
+    {
+      "id": "inbox-04",
+      "transcript": "ver isso",
+      "expected_project": null,
+      "expected_routed_to": "inbox",
+      "structured": {
+        "language": "pt",
+        "needs_review": true,
+        "tasks": [{
+          "content": "Ver isso",
+          "project_suggestion": null,
+          "project_confidence": 0.2,
+          "due_string": null,
+          "priority": null,
+          "labels": [],
+          "subtasks": [],
+          "notes": null
+        }]
+      }
+    },
+    {
+      "id": "multi-01",
+      "transcript": "comprar pão e ligar pro contador amanhã",
+      "expected_project": "Compras",
+      "expected_routed_to": "project",
+      "expected_tasks": [
+        {"project": "Compras", "routed_to": "project"},
+        {"project": "Personal", "routed_to": "project"}
+      ],
+      "structured": {
+        "language": "pt",
+        "needs_review": false,
+        "tasks": [
+          {
+            "content": "Comprar pão",
+            "project_suggestion": "Compras",
+            "project_confidence": 0.85,
+            "due_string": null,
+            "priority": null,
+            "labels": [],
+            "subtasks": [],
+            "notes": null
+          },
+          {
+            "content": "Ligar para o contador",
+            "project_suggestion": "Personal",
+            "project_confidence": 0.8,
+            "due_string": "amanhã",
+            "priority": null,
+            "labels": [],
+            "subtasks": [],
+            "notes": null
+          }
+        ]
+      }
+    }
+  ]
+}
