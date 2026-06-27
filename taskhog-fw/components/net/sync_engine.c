@@ -26,19 +26,21 @@ void sync_engine_set_done_cb(sync_done_cb_t cb)
 
 int sync_engine_drain(void)
 {
+    /* Snapshot da fila ANTES de Wi-Fi/TLS — SDIO + RF concorrente falha leitura FAT. */
+    char ids[MAX_PENDING_SNAPSHOT][24];
+    int count = queue_list_pending(ids, MAX_PENDING_SNAPSHOT);
+    if (count == 0) {
+        ESP_LOGI(TAG, "nada pendente");
+        return 0;
+    }
+
     if (wifi_sta_connect(WIFI_CONNECT_MS) != ESP_OK) {
         ESP_LOGW(TAG, "sem rede — fila mantida intacta");
         return 0;
     }
     if (http_uploader_health() != ESP_OK) {
         ESP_LOGW(TAG, "Hub inalcançável — fila mantida intacta");
-        return 0;
-    }
-
-    char ids[MAX_PENDING_SNAPSHOT][24];
-    int count = queue_list_pending(ids, MAX_PENDING_SNAPSHOT);
-    if (count == 0) {
-        ESP_LOGI(TAG, "nada pendente");
+        wifi_sta_drop();
         return 0;
     }
 
@@ -73,6 +75,7 @@ int sync_engine_drain(void)
     }
 
     ESP_LOGI(TAG, "drenagem concluída: %d/%d enviados", sent, count);
+    wifi_sta_drop();
     return sent;
 }
 

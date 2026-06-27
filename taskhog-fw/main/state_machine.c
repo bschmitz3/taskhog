@@ -7,7 +7,7 @@
 
 static const char *TAG = "state";
 
-#define CONFIRM_AUTO_MS 2000
+#define CONFIRM_AUTO_MS 500
 
 static taskhog_state_t s_state = TASKHOG_STATE_BOOT;
 static esp_timer_handle_t s_confirm_timer;

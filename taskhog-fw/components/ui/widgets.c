@@ -50,7 +50,7 @@ esp_err_t widget_read_status(widget_status_t *out)
     }
 
     if (sdcard_is_mounted()) {
-        out->queue_count = queue_pending_count();
+        out->queue_count = queue_pending_hint();
     }
     return ESP_OK;
 }

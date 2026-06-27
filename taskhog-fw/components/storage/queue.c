@@ -4,14 +4,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "board_pins.h"
 #include "config.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "sdcard.h"
 
 static const char *TAG = "queue";
@@ -23,6 +27,33 @@ static const char *TAG = "queue";
 #define PATH_MAX_LOCAL 80
 
 static uint16_t s_seq;
+static int s_pending_hint;
+static SemaphoreHandle_t s_mutex;
+
+#define RAM_PENDING_MAX 16
+
+typedef struct {
+    char id[24];
+    char job_path[48];
+    uint16_t seq;
+} ram_pending_t;
+
+static ram_pending_t s_ram[RAM_PENDING_MAX];
+static int s_ram_count;
+
+static void queue_lock(void)
+{
+    if (s_mutex != NULL) {
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+    }
+}
+
+static void queue_unlock(void)
+{
+    if (s_mutex != NULL) {
+        xSemaphoreGive(s_mutex);
+    }
+}
 
 static bool queue_join_path(char *out, size_t out_len, const char *dir, const char *name)
 {
@@ -31,6 +62,89 @@ static bool queue_join_path(char *out, size_t out_len, const char *dir, const ch
     }
     int n = snprintf(out, out_len, "%s/%s", dir, name);
     return n > 0 && (size_t)n < out_len;
+}
+
+static bool has_job_ext(const char *name)
+{
+    size_t len = strlen(name);
+    return len >= 5 && strcasecmp(name + len - 4, ".job") == 0;
+}
+
+static bool parse_queue_seq(const char *name, uint16_t *out_seq)
+{
+    unsigned int n = 0;
+    if (sscanf(name, "q%04u.job", &n) == 1 ||
+        sscanf(name, "Q%04u.JOB", &n) == 1 ||
+        sscanf(name, "q%04u.JOB", &n) == 1) {
+        if (out_seq != NULL) {
+            *out_seq = (uint16_t)n;
+        }
+        return true;
+    }
+    return false;
+}
+
+static void ram_pending_clear(void)
+{
+    s_ram_count = 0;
+}
+
+static void ram_pending_add(const job_t *job, uint16_t seq)
+{
+    if (job == NULL || s_ram_count >= RAM_PENDING_MAX) {
+        return;
+    }
+    for (int i = 0; i < s_ram_count; i++) {
+        if (strcmp(s_ram[i].id, job->id) == 0) {
+            strncpy(s_ram[i].job_path, job->job_path, sizeof(s_ram[i].job_path) - 1);
+            s_ram[i].seq = seq;
+            return;
+        }
+    }
+    strncpy(s_ram[s_ram_count].id, job->id, sizeof(s_ram[s_ram_count].id) - 1);
+    strncpy(s_ram[s_ram_count].job_path, job->job_path, sizeof(s_ram[s_ram_count].job_path) - 1);
+    s_ram[s_ram_count].seq = seq;
+    s_ram_count++;
+}
+
+static void ram_pending_remove(const char *id)
+{
+    if (id == NULL) {
+        return;
+    }
+    for (int i = 0; i < s_ram_count; i++) {
+        if (strcmp(s_ram[i].id, id) == 0) {
+            s_ram_count--;
+            if (i < s_ram_count) {
+                s_ram[i] = s_ram[s_ram_count];
+            }
+            return;
+        }
+    }
+}
+
+static esp_err_t read_job_file(const char *path, job_t *out);
+
+static int ram_pending_list(char ids[][24], int max, uint16_t *seqs)
+{
+    int count = 0;
+    for (int i = 0; i < s_ram_count && count < max; i++) {
+        job_t job;
+        if (read_job_file(s_ram[i].job_path, &job) != ESP_OK) {
+            ESP_LOGW(TAG, "RAM idx: read falhou %s", s_ram[i].job_path);
+            continue;
+        }
+        if (job.state != JOB_STATE_QUEUED && job.state != JOB_STATE_ERROR) {
+            continue;
+        }
+        strncpy(ids[count], job.id, 23);
+        ids[count][23] = '\0';
+        if (seqs != NULL) {
+            seqs[count] = s_ram[i].seq;
+        }
+        count++;
+    }
+    return count;
 }
 
 static esp_err_t ensure_dir(const char *path)
@@ -110,12 +224,15 @@ static esp_err_t scan_max_seq(uint16_t *out_max)
     uint16_t max_seq = 0;
     struct dirent *ent;
     while ((ent = readdir(dir)) != NULL) {
-        unsigned int n = 0;
-        if (sscanf(ent->d_name, "q%04u.job", &n) == 1 && n > max_seq) {
-            max_seq = (uint16_t)n;
+        uint16_t n = 0;
+        if (parse_queue_seq(ent->d_name, &n) && n > max_seq) {
+            max_seq = n;
         }
-        if (sscanf(ent->d_name, "q%04u.wav", &n) == 1 && n > max_seq) {
-            max_seq = (uint16_t)n;
+        unsigned int w = 0;
+        if (sscanf(ent->d_name, "q%04u.wav", &w) == 1 || sscanf(ent->d_name, "Q%04u.WAV", &w) == 1) {
+            if ((uint16_t)w > max_seq) {
+                max_seq = (uint16_t)w;
+            }
         }
     }
     closedir(dir);
@@ -170,6 +287,7 @@ static esp_err_t write_job_file(const job_t *job)
             hub_json);
 
     fflush(f);
+    fsync(fileno(f));
     fclose(f);
     return ESP_OK;
 }
@@ -284,6 +402,32 @@ static esp_err_t read_job_file(const char *path, job_t *out)
     return out->id[0] ? ESP_OK : ESP_FAIL;
 }
 
+static int count_jobs_in_state_nolock(job_state_t target)
+{
+    DIR *dir = opendir(QUEUE_DIR);
+    if (dir == NULL) {
+        return 0;
+    }
+
+    int count = 0;
+    char path[PATH_MAX_LOCAL];
+    job_t job;
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (!has_job_ext(ent->d_name)) {
+            continue;
+        }
+        if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
+            continue;
+        }
+        if (read_job_file(path, &job) == ESP_OK && job.state == target) {
+            count++;
+        }
+    }
+    closedir(dir);
+    return count;
+}
+
 static esp_err_t find_job_by_id(const char *id, job_t *out)
 {
     DIR *dir = opendir(QUEUE_DIR);
@@ -294,7 +438,7 @@ static esp_err_t find_job_by_id(const char *id, job_t *out)
     struct dirent *ent;
     char path[PATH_MAX_LOCAL];
     while ((ent = readdir(dir)) != NULL) {
-        if (strstr(ent->d_name, JOB_EXT) == NULL) {
+        if (!has_job_ext(ent->d_name)) {
             continue;
         }
         if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
@@ -306,23 +450,81 @@ static esp_err_t find_job_by_id(const char *id, job_t *out)
         }
     }
     closedir(dir);
+
+    for (int i = 0; i < s_ram_count; i++) {
+        if (strcmp(s_ram[i].id, id) == 0) {
+            return read_job_file(s_ram[i].job_path, out);
+        }
+    }
     return ESP_ERR_NOT_FOUND;
 }
 
 esp_err_t queue_init(void)
 {
+    if (s_mutex == NULL) {
+        s_mutex = xSemaphoreCreateMutex();
+        if (s_mutex == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
     if (!sdcard_is_mounted()) {
         ESP_LOGW(TAG, "SD não montado — fila adiada");
         return ESP_OK;
     }
 
-    ESP_RETURN_ON_ERROR(ensure_dir(QUEUE_DIR), TAG, "queue dir");
-    ESP_RETURN_ON_ERROR(ensure_dir(SENT_DIR), TAG, "sent dir");
+    queue_lock();
+    esp_err_t err = ensure_dir(QUEUE_DIR);
+    if (err != ESP_OK) {
+        queue_unlock();
+        return err;
+    }
+    err = ensure_dir(SENT_DIR);
+    if (err != ESP_OK) {
+        queue_unlock();
+        return err;
+    }
 
     uint16_t max_seq = 0;
     scan_max_seq(&max_seq);
     s_seq = max_seq;
-    ESP_LOGI(TAG, "fila pronta (seq=%u)", (unsigned)s_seq);
+    s_pending_hint = count_jobs_in_state_nolock(JOB_STATE_QUEUED)
+                   + count_jobs_in_state_nolock(JOB_STATE_ERROR);
+    ram_pending_clear();
+    if (s_pending_hint > 0) {
+        int rebuilt = 0;
+        DIR *dir = opendir(QUEUE_DIR);
+        if (dir != NULL) {
+            struct dirent *ent;
+            char path[PATH_MAX_LOCAL];
+            job_t job;
+            while ((ent = readdir(dir)) != NULL && rebuilt < RAM_PENDING_MAX) {
+                uint16_t seq = 0;
+                if (!parse_queue_seq(ent->d_name, &seq)) {
+                    continue;
+                }
+                if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
+                    continue;
+                }
+                if (read_job_file(path, &job) != ESP_OK) {
+                    continue;
+                }
+                if (job.state == JOB_STATE_QUEUED || job.state == JOB_STATE_ERROR) {
+                    ram_pending_add(&job, seq);
+                    rebuilt++;
+                }
+            }
+            closedir(dir);
+        }
+        if (rebuilt == 0 && s_pending_hint > 0) {
+            ESP_LOGW(TAG, "init: hint=%d mas SD scan não listou .job — índice RAM vazio",
+                     s_pending_hint);
+            s_pending_hint = 0;
+        }
+    }
+    queue_unlock();
+
+    ESP_LOGI(TAG, "fila pronta (seq=%u, hint=%d)", (unsigned)s_seq, s_pending_hint);
     return ESP_OK;
 }
 
@@ -344,7 +546,12 @@ esp_err_t queue_prepare_capture(char *out_job_id,
         return ESP_ERR_INVALID_STATE;
     }
 
-    ESP_RETURN_ON_ERROR(ensure_dir(QUEUE_DIR), TAG, "queue dir");
+    queue_lock();
+    esp_err_t err = ensure_dir(QUEUE_DIR);
+    if (err != ESP_OK) {
+        queue_unlock();
+        return err;
+    }
 
     if (s_seq == 0) {
         uint16_t max_seq = 0;
@@ -353,9 +560,15 @@ esp_err_t queue_prepare_capture(char *out_job_id,
     }
 
     s_seq++;
-    ESP_RETURN_ON_ERROR(generate_client_job_id(out_job_id, job_id_len), TAG, "job id");
+    err = generate_client_job_id(out_job_id, job_id_len);
+    if (err != ESP_OK) {
+        queue_unlock();
+        return err;
+    }
 
     int n = snprintf(out_wav_path, wav_path_len, "%s/q%04u%s", QUEUE_DIR, (unsigned)s_seq, WAV_EXT);
+    queue_unlock();
+
     if (n <= 0 || (size_t)n >= wav_path_len) {
         return ESP_ERR_INVALID_SIZE;
     }
@@ -374,9 +587,12 @@ esp_err_t queue_enqueue(const recording_meta_t *meta, const char *wav_path)
         return ESP_ERR_INVALID_STATE;
     }
 
+    queue_lock();
+
     struct stat st;
     if (stat(wav_path, &st) != 0 || st.st_size == 0) {
         ESP_LOGE(TAG, "WAV ausente: %s", wav_path);
+        queue_unlock();
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -399,8 +615,16 @@ esp_err_t queue_enqueue(const recording_meta_t *meta, const char *wav_path)
 
     esp_err_t err = write_job_file(&job);
     if (err == ESP_OK) {
-        ESP_LOGI(TAG, "enfileirado %s (%s)", job.id, job.job_path);
+        unsigned int seq_n = 0;
+        if (sscanf(base, "q%04u.wav", &seq_n) != 1) {
+            sscanf(base, "Q%04u.WAV", &seq_n);
+        }
+        ram_pending_add(&job, (uint16_t)seq_n);
+        s_pending_hint++;
+        ESP_LOGI(TAG, "enfileirado %s (%s) hint=%d ram=%d",
+                 job.id, job.job_path, s_pending_hint, s_ram_count);
     }
+    queue_unlock();
     return err;
 }
 
@@ -410,8 +634,11 @@ esp_err_t queue_peek_next(job_t *out)
         return ESP_ERR_INVALID_ARG;
     }
 
+    queue_lock();
+
     DIR *dir = opendir(QUEUE_DIR);
     if (dir == NULL) {
+        queue_unlock();
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -420,12 +647,12 @@ esp_err_t queue_peek_next(job_t *out)
 
     struct dirent *ent;
     while ((ent = readdir(dir)) != NULL) {
-        unsigned int n = 0;
-        if (sscanf(ent->d_name, "q%04u.job", &n) != 1) {
+        uint16_t n = 0;
+        if (!parse_queue_seq(ent->d_name, &n)) {
             continue;
         }
-        if ((uint16_t)n < best_seq) {
-            best_seq = (uint16_t)n;
+        if (n < best_seq) {
+            best_seq = n;
             if (!queue_join_path(best_path, sizeof(best_path), QUEUE_DIR, ent->d_name)) {
                 best_path[0] = '\0';
             }
@@ -434,16 +661,18 @@ esp_err_t queue_peek_next(job_t *out)
     closedir(dir);
 
     if (best_path[0] == '\0') {
+        queue_unlock();
         return ESP_ERR_NOT_FOUND;
     }
 
+    esp_err_t err = ESP_OK;
     if (read_job_file(best_path, out) != ESP_OK) {
-        return ESP_FAIL;
+        err = ESP_FAIL;
+    } else if (out->state != JOB_STATE_QUEUED && out->state != JOB_STATE_ERROR) {
+        err = ESP_ERR_NOT_FOUND;
     }
-    if (out->state != JOB_STATE_QUEUED && out->state != JOB_STATE_ERROR) {
-        return ESP_ERR_NOT_FOUND;
-    }
-    return ESP_OK;
+    queue_unlock();
+    return err;
 }
 
 esp_err_t queue_get(const char *id, job_t *out)
@@ -451,21 +680,38 @@ esp_err_t queue_get(const char *id, job_t *out)
     if (id == NULL || out == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
-    return find_job_by_id(id, out);
+    queue_lock();
+    esp_err_t err = find_job_by_id(id, out);
+    queue_unlock();
+    return err;
 }
 
 esp_err_t queue_mark_uploaded(const char *id, const char *hub_recording_id)
 {
+    queue_lock();
     job_t job;
-    ESP_RETURN_ON_ERROR(find_job_by_id(id, &job), TAG, "job não encontrado");
+    esp_err_t err = find_job_by_id(id, &job);
+    if (err != ESP_OK) {
+        queue_unlock();
+        return err;
+    }
 
+    bool was_pending = (job.state == JOB_STATE_QUEUED || job.state == JOB_STATE_ERROR);
     job.state = JOB_STATE_UPLOADED;
     job.last_error[0] = '\0';
     if (hub_recording_id != NULL) {
         strncpy(job.hub_recording_id, hub_recording_id, sizeof(job.hub_recording_id) - 1);
         job.hub_recording_id[sizeof(job.hub_recording_id) - 1] = '\0';
     }
-    return write_job_file(&job);
+    err = write_job_file(&job);
+    if (err == ESP_OK && was_pending && s_pending_hint > 0) {
+        s_pending_hint--;
+    }
+    if (err == ESP_OK) {
+        ram_pending_remove(id);
+    }
+    queue_unlock();
+    return err;
 }
 
 int queue_list_pending(char ids[][24], int max)
@@ -474,8 +720,12 @@ int queue_list_pending(char ids[][24], int max)
         return 0;
     }
 
+    queue_lock();
+
     DIR *dir = opendir(QUEUE_DIR);
     if (dir == NULL) {
+        ESP_LOGW(TAG, "opendir %s falhou", QUEUE_DIR);
+        queue_unlock();
         return 0;
     }
 
@@ -483,22 +733,28 @@ int queue_list_pending(char ids[][24], int max)
     char tmp_ids[64][24];
     int cap = max < 64 ? max : 64;
     int count = 0;
+    int jobs_seen = 0;
+    int read_fail = 0;
+    int wrong_state = 0;
 
     struct dirent *ent;
     char path[PATH_MAX_LOCAL];
     job_t job;
     while ((ent = readdir(dir)) != NULL && count < cap) {
-        unsigned int n = 0;
-        if (sscanf(ent->d_name, "q%04u.job", &n) != 1) {
+        uint16_t n = 0;
+        if (!parse_queue_seq(ent->d_name, &n)) {
             continue;
         }
+        jobs_seen++;
         if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
             continue;
         }
         if (read_job_file(path, &job) != ESP_OK) {
+            read_fail++;
             continue;
         }
         if (job.state != JOB_STATE_QUEUED && job.state != JOB_STATE_ERROR) {
+            wrong_state++;
             continue;
         }
         seqs[count] = (uint16_t)n;
@@ -507,6 +763,17 @@ int queue_list_pending(char ids[][24], int max)
         count++;
     }
     closedir(dir);
+
+    if (count == 0 && s_ram_count > 0) {
+        count = ram_pending_list(tmp_ids, cap, seqs);
+        if (count > 0) {
+            ESP_LOGW(TAG, "list_pending: %d via índice RAM (SD scan=%d .job, hint=%d)",
+                     count, jobs_seen, s_pending_hint);
+        }
+    } else if (count == 0 && s_pending_hint > 0) {
+        ESP_LOGW(TAG, "list_pending: vazio (hint=%d ram=%d jobs_seen=%d read_fail=%d)",
+                 s_pending_hint, s_ram_count, jobs_seen, read_fail);
+    }
 
     /* Insertion sort por seq (FIFO). */
     for (int i = 1; i < count; i++) {
@@ -527,13 +794,27 @@ int queue_list_pending(char ids[][24], int max)
         strncpy(ids[i], tmp_ids[i], 24 - 1);
         ids[i][24 - 1] = '\0';
     }
+
+    queue_unlock();
+
+    if (count == 0 && jobs_seen > 0) {
+        ESP_LOGW(TAG, "list_pending: 0 ok (%d .job, %d read_fail, %d wrong_state)",
+                 jobs_seen, read_fail, wrong_state);
+    } else if (count > 0) {
+        ESP_LOGI(TAG, "list_pending: %d job(s) pendente(s)", count);
+    }
     return count;
 }
 
 esp_err_t queue_mark(const char *id, job_state_t state, const char *err)
 {
+    queue_lock();
     job_t job;
-    ESP_RETURN_ON_ERROR(find_job_by_id(id, &job), TAG, "job não encontrado");
+    esp_err_t ret = find_job_by_id(id, &job);
+    if (ret != ESP_OK) {
+        queue_unlock();
+        return ret;
+    }
 
     job.state = state;
     if (err != NULL && err[0] != '\0') {
@@ -545,13 +826,20 @@ esp_err_t queue_mark(const char *id, job_state_t state, const char *err)
         job.attempts++;
     }
 
-    return write_job_file(&job);
+    ret = write_job_file(&job);
+    queue_unlock();
+    return ret;
 }
 
 esp_err_t queue_complete(const char *id)
 {
+    queue_lock();
     job_t job;
-    ESP_RETURN_ON_ERROR(find_job_by_id(id, &job), TAG, "job não encontrado");
+    esp_err_t ret = find_job_by_id(id, &job);
+    if (ret != ESP_OK) {
+        queue_unlock();
+        return ret;
+    }
 
     char sent_job[64];
     char sent_wav[64];
@@ -563,52 +851,43 @@ esp_err_t queue_complete(const char *id)
     snprintf(sent_job, sizeof(sent_job), "%s/%s", SENT_DIR, job_base);
     snprintf(sent_wav, sizeof(sent_wav), "%s/%s", SENT_DIR, wav_base);
 
-    ESP_RETURN_ON_ERROR(ensure_dir(SENT_DIR), TAG, "sent dir");
+    ret = ensure_dir(SENT_DIR);
+    if (ret != ESP_OK) {
+        queue_unlock();
+        return ret;
+    }
 
     if (rename(job.wav_path, sent_wav) != 0) {
         ESP_LOGW(TAG, "rename wav falhou — mantendo em queue");
     }
     if (rename(job.job_path, sent_job) != 0) {
         ESP_LOGW(TAG, "rename job falhou");
+        queue_unlock();
         return ESP_FAIL;
     }
 
     ESP_LOGI(TAG, "completo %s → sent/", id);
+    queue_unlock();
     return ESP_OK;
-}
-
-static int count_jobs_in_state(job_state_t target)
-{
-    DIR *dir = opendir(QUEUE_DIR);
-    if (dir == NULL) {
-        return 0;
-    }
-
-    int count = 0;
-    char path[PATH_MAX_LOCAL];
-    job_t job;
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
-        if (strstr(ent->d_name, JOB_EXT) == NULL) {
-            continue;
-        }
-        if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
-            continue;
-        }
-        if (read_job_file(path, &job) == ESP_OK && job.state == target) {
-            count++;
-        }
-    }
-    closedir(dir);
-    return count;
 }
 
 int queue_pending_count(void)
 {
-    return count_jobs_in_state(JOB_STATE_QUEUED);
+    queue_lock();
+    int n = count_jobs_in_state_nolock(JOB_STATE_QUEUED);
+    queue_unlock();
+    return n;
 }
 
 int queue_error_count(void)
 {
-    return count_jobs_in_state(JOB_STATE_ERROR);
+    queue_lock();
+    int n = count_jobs_in_state_nolock(JOB_STATE_ERROR);
+    queue_unlock();
+    return n;
+}
+
+int queue_pending_hint(void)
+{
+    return s_pending_hint;
 }

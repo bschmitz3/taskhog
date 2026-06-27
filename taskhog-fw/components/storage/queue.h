@@ -66,4 +66,7 @@ int queue_list_pending(char ids[][24], int max);
 int queue_pending_count(void);
 int queue_error_count(void);
 
+/** Contador em RAM (atualizado em enqueue/upload); evita I/O SD na UI. */
+int queue_pending_hint(void);
+
 const char *queue_state_name(job_state_t state);

@@ -36,3 +36,7 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
 # handshake WPA2 (aes_unwrap no EAPOL) aborta com "No free interrupt inputs for
 # AES interrupt". Polling evita a alocação de IRQ. — M3
 CONFIG_MBEDTLS_AES_USE_INTERRUPT=n
+
+# MPI/RSA por polling: mesmo pool de IRQ esgotado; TLS (verificação de cert
+# Cloudflare no Hub) aborta com "No free interrupt inputs for RSA interrupt".
+CONFIG_MBEDTLS_MPI_USE_INTERRUPT=n
