@@ -265,3 +265,48 @@ def get_last_task(engine: Engine) -> dict[str, Any] | None:
         "project": first.get("project"),
         "routed_to": first.get("routed_to"),
     }
+
+
+# --- Cache Todoist (M4-T1) ---------------------------------------------------
+
+def replace_todoist_cache(
+    engine: Engine, kind: str, items: list[tuple[str, str]]
+) -> None:
+    """Substitui todas as entradas de um kind ('project' | 'label')."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM todoist_cache WHERE kind = :kind"),
+            {"kind": kind},
+        )
+        if items:
+            conn.execute(
+                text(
+                    "INSERT INTO todoist_cache (kind, ext_id, name) "
+                    "VALUES (:kind, :ext_id, :name)"
+                ),
+                [
+                    {"kind": kind, "ext_id": ext_id, "name": name}
+                    for ext_id, name in items
+                ],
+            )
+
+
+def list_todoist_cache(engine: Engine, kind: str) -> list[dict[str, str]]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT ext_id, name FROM todoist_cache "
+                "WHERE kind = :kind ORDER BY name COLLATE NOCASE"
+            ),
+            {"kind": kind},
+        ).all()
+    return [{"ext_id": str(row.ext_id), "name": row.name} for row in rows]
+
+
+def count_todoist_cache(engine: Engine, kind: str) -> int:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT COUNT(*) AS n FROM todoist_cache WHERE kind = :kind"),
+            {"kind": kind},
+        ).one()
+        return int(row.n)

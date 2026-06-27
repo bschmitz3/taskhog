@@ -15,6 +15,12 @@ class HealthResponse(BaseModel):
     version: str = HUB_VERSION
 
 
+class CacheRefreshResponse(BaseModel):
+    projects: int
+    labels: int
+    refreshed_at: str
+
+
 class LastTaskSummary(BaseModel):
     content: str
     project: str | None = None

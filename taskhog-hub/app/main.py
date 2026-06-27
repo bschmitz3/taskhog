@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,8 +12,25 @@ from app.api import admin, recordings, status
 from app.config import load_config
 from app.deps import bind_tokens
 from app.models.db import create_db_engine, init_db
-from app.services import transcribe
+from app.services import todoist_cache, transcribe
 from app.worker import queue as worker_queue
+
+logger = logging.getLogger(__name__)
+
+
+async def _todoist_cache_refresh_loop(app: FastAPI) -> None:
+    config = app.state.config
+    engine = app.state.engine
+    interval_s = max(60, config.todoist_cache_refresh_min * 60)
+
+    while True:
+        await asyncio.sleep(interval_s)
+        try:
+            await asyncio.to_thread(
+                todoist_cache.refresh_project_label_cache, engine, config
+            )
+        except Exception:
+            logger.exception("Refresh periódico do cache Todoist falhou")
 
 
 @asynccontextmanager
@@ -28,10 +48,27 @@ async def lifespan(app: FastAPI):
 
     transcribe.warmup_whisper_background(config)
 
+    if config.todoist_token:
+        try:
+            await asyncio.to_thread(
+                todoist_cache.refresh_project_label_cache, engine, config
+            )
+        except Exception:
+            logger.warning(
+                "Cache Todoist inicial falhou — LLM usará lista vazia até refresh",
+                exc_info=True,
+            )
+
+    cache_task = asyncio.create_task(_todoist_cache_refresh_loop(app))
+    app.state.cache_refresh_task = cache_task
+
     worker_queue.start_worker(app)
 
     yield
 
+    cache_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await cache_task
     await worker_queue.stop_worker(app)
     engine.dispose()
 
