@@ -1,5 +1,7 @@
 #include "queue.h"
 
+#include "journal.h"
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -621,6 +623,7 @@ esp_err_t queue_enqueue(const recording_meta_t *meta, const char *wav_path)
         }
         ram_pending_add(&job, (uint16_t)seq_n);
         s_pending_hint++;
+        journal_log_enqueue(job.id);
         ESP_LOGI(TAG, "enfileirado %s (%s) hint=%d ram=%d",
                  job.id, job.job_path, s_pending_hint, s_ram_count);
     }
@@ -709,6 +712,7 @@ esp_err_t queue_mark_uploaded(const char *id, const char *hub_recording_id)
     }
     if (err == ESP_OK) {
         ram_pending_remove(id);
+        journal_log_uploaded(id, hub_recording_id);
     }
     queue_unlock();
     return err;
@@ -827,6 +831,9 @@ esp_err_t queue_mark(const char *id, job_state_t state, const char *err)
     }
 
     ret = write_job_file(&job);
+    if (ret == ESP_OK) {
+        journal_log_mark(id, state, err);
+    }
     queue_unlock();
     return ret;
 }
@@ -867,8 +874,93 @@ esp_err_t queue_complete(const char *id)
     }
 
     ESP_LOGI(TAG, "completo %s → sent/", id);
+    journal_log_complete(id);
     queue_unlock();
     return ESP_OK;
+}
+
+int queue_recover_stuck_jobs(void)
+{
+    if (!sdcard_is_mounted()) {
+        return 0;
+    }
+
+    if (s_mutex == NULL) {
+        s_mutex = xSemaphoreCreateMutex();
+        if (s_mutex == NULL) {
+            return 0;
+        }
+    }
+
+    queue_lock();
+    DIR *dir = opendir(QUEUE_DIR);
+    if (dir == NULL) {
+        queue_unlock();
+        return 0;
+    }
+
+    int fixed = 0;
+    struct dirent *ent;
+    char path[PATH_MAX_LOCAL];
+    job_t job;
+    while ((ent = readdir(dir)) != NULL) {
+        if (!has_job_ext(ent->d_name)) {
+            continue;
+        }
+        if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
+            continue;
+        }
+        if (read_job_file(path, &job) != ESP_OK) {
+            continue;
+        }
+        if (job.state != JOB_STATE_UPLOADING && job.state != JOB_STATE_PROCESSING) {
+            continue;
+        }
+        job.state = JOB_STATE_QUEUED;
+        job.last_error[0] = '\0';
+        if (write_job_file(&job) == ESP_OK) {
+            journal_log_mark(job.id, JOB_STATE_QUEUED, NULL);
+            fixed++;
+            ESP_LOGW(TAG, "recovery: %s → queued", job.id);
+        }
+    }
+    closedir(dir);
+    queue_unlock();
+    return fixed;
+}
+
+int queue_scan_orphan_wavs(void)
+{
+    if (!sdcard_is_mounted()) {
+        return 0;
+    }
+
+    DIR *dir = opendir(QUEUE_DIR);
+    if (dir == NULL) {
+        return 0;
+    }
+
+    int orphans = 0;
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        size_t len = strlen(ent->d_name);
+        if (len < 5 || strcasecmp(ent->d_name + len - 4, ".wav") != 0) {
+            continue;
+        }
+        char job_name[16];
+        snprintf(job_name, sizeof(job_name), "%.*s.job", (int)(len - 4), ent->d_name);
+        char job_path[PATH_MAX_LOCAL];
+        if (!queue_join_path(job_path, sizeof(job_path), QUEUE_DIR, job_name)) {
+            continue;
+        }
+        struct stat st;
+        if (stat(job_path, &st) != 0) {
+            ESP_LOGW(TAG, "órfão WAV sem .job: %s/%s", QUEUE_DIR, ent->d_name);
+            orphans++;
+        }
+    }
+    closedir(dir);
+    return orphans;
 }
 
 int queue_pending_count(void)

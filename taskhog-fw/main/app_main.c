@@ -57,8 +57,8 @@ static esp_err_t init_all_stubs(void)
     ESP_RETURN_ON_ERROR(audio_capture_init(), TAG, "audio_capture");
     ESP_RETURN_ON_ERROR(wav_writer_init(), TAG, "wav_writer");
     ESP_RETURN_ON_ERROR(sdcard_init(), TAG, "sdcard");
-    ESP_RETURN_ON_ERROR(queue_init(), TAG, "queue");
     ESP_RETURN_ON_ERROR(journal_init(), TAG, "journal");
+    ESP_RETURN_ON_ERROR(queue_init(), TAG, "queue");
     ESP_RETURN_ON_ERROR(wifi_sta_init(), TAG, "wifi_sta");
     ESP_RETURN_ON_ERROR(sync_engine_init(), TAG, "sync_engine");
     ESP_RETURN_ON_ERROR(http_uploader_init(), TAG, "http_uploader");

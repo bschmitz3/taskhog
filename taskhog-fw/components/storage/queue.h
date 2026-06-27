@@ -69,4 +69,10 @@ int queue_error_count(void);
 /** Contador em RAM (atualizado em enqueue/upload); evita I/O SD na UI. */
 int queue_pending_hint(void);
 
+/** Boot recovery (M5-T1): uploading/processing → queued. */
+int queue_recover_stuck_jobs(void);
+
+/** Boot recovery: WAV em queue/ sem .job correspondente. */
+int queue_scan_orphan_wavs(void);
+
 const char *queue_state_name(job_state_t state);
