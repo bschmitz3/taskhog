@@ -59,7 +59,10 @@ storage:
     monkeypatch.setenv("HUB_CONFIG", str(config_path))
 
     from app import main
-    from app.services import todoist, transcribe
+    from app.models import db
+    from app.models.schemas import StructuredResult, StructuredTaskItem
+    from app.services import todoist, todoist_cache, transcribe
+    from app.worker import pipeline as worker_pipeline
 
     created: list[dict] = []
 
@@ -67,14 +70,58 @@ storage:
         return "comprar pão e ligar pro contador"
 
     def fake_create_task(config, *, content, labels=None, **kwargs):
-        created.append({"content": content, "labels": labels})
-        return {"id": f"tdid-{len(created)}", "content": content}
+        created.append(
+            {
+                "content": content,
+                "labels": labels,
+                "project_id": kwargs.get("project_id"),
+                "due_string": kwargs.get("due_string"),
+                "priority": kwargs.get("priority"),
+                "parent_id": kwargs.get("parent_id"),
+            }
+        )
+        return {
+            "id": f"tdid-{len(created)}",
+            "content": content,
+            "project_id": kwargs.get("project_id"),
+        }
+
+    class FakeLLM:
+        def structure(self, transcript, *, now, projects, labels):
+            return StructuredResult(
+                language="pt",
+                needs_review=False,
+                tasks=[
+                    StructuredTaskItem(
+                        content="Comprar pão",
+                        project_suggestion="Compras",
+                        project_confidence=0.9,
+                    ),
+                    StructuredTaskItem(
+                        content="Ligar para o contador",
+                        project_suggestion="Personal",
+                        project_confidence=0.8,
+                        due_string="amanhã",
+                    ),
+                ],
+            )
 
     monkeypatch.setattr(transcribe, "transcribe", fake_transcribe)
     monkeypatch.setattr(transcribe, "whisper_status", lambda: "ready")
     monkeypatch.setattr(todoist, "create_task", fake_create_task)
+    monkeypatch.setattr(worker_pipeline, "get_llm_provider", lambda _cfg: FakeLLM())
+    monkeypatch.setattr(
+        todoist_cache,
+        "refresh_project_label_cache",
+        lambda engine, config: {"projects": 0, "labels": 0},
+    )
 
     with TestClient(main.app) as c:
+        db.replace_todoist_cache(
+            c.app.state.engine,
+            "project",
+            [("pid-compras", "Compras"), ("pid-pessoal", "Personal")],
+        )
         c.created_tasks = created  # type: ignore[attr-defined]
         yield c
 
@@ -138,11 +185,13 @@ def test_pipeline_creates_task(client: TestClient):
     detail = _wait_done(client, body["recording_id"])
     assert detail["status"] == "done", detail
     assert detail["transcript"] == "comprar pão e ligar pro contador"
-    assert len(detail["tasks"]) == 1
-    task = detail["tasks"][0]
-    assert task["routed_to"] == "inbox"
-    assert "taskhog" in task["labels"]
-    assert len(client.created_tasks) == 1  # type: ignore[attr-defined]
+    assert len(detail["tasks"]) == 2
+    assert detail["tasks"][0]["routed_to"] == "project"
+    assert detail["tasks"][0]["project"] == "Compras"
+    assert detail["tasks"][1]["routed_to"] == "project"
+    assert detail["tasks"][1]["due"] == "amanhã"
+    assert "taskhog" in detail["tasks"][0]["labels"]
+    assert len(client.created_tasks) == 2  # type: ignore[attr-defined]
 
 
 def test_idempotent_resend(client: TestClient):
@@ -156,7 +205,7 @@ def test_idempotent_resend(client: TestClient):
     assert second.json()["duplicate"] is True
     assert second.json()["recording_id"] == rid
     # Não criou tarefa nova no Todoist.
-    assert len(client.created_tasks) == 1  # type: ignore[attr-defined]
+    assert len(client.created_tasks) == 2  # type: ignore[attr-defined]
 
 
 def test_status_reflects_processed(client: TestClient):
@@ -165,4 +214,4 @@ def test_status_reflects_processed(client: TestClient):
 
     status = client.get("/v1/status").json()
     assert status["processed_today"] >= 1
-    assert status["last_task"]["routed_to"] == "inbox"
+    assert status["last_task"]["routed_to"] == "project"

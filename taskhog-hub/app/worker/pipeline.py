@@ -1,17 +1,18 @@
-"""Pipeline por job (M2 — caminho cru, sem LLM).
-
-queued → transcribing (whisper) → creating (Todoist Inbox + label taskhog) → done.
-A estruturação por LLM e o roteamento por projeto entram em M4.
-"""
+"""Pipeline por job: transcribing → structuring → creating → done (M4)."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from app.models import db
+from app.models.schemas import StructuredResult, StructuredTaskItem
 from app.services import todoist, transcribe
+from app.services.confidence import merge_labels, route_task
+from app.services.llm.base import get_llm_provider
+from app.services.todoist_cache import get_cached_label_names, get_cached_project_names, get_cached_projects
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
@@ -23,6 +24,94 @@ logger = logging.getLogger(__name__)
 _EMPTY_TRANSCRIPT_CONTENT = "(áudio sem fala reconhecida)"
 
 
+def _reference_now(job: dict[str, Any]) -> datetime:
+    use_rtc = bool(job.get("rtc_valid"))
+    raw = job.get("rtc_timestamp") if use_rtc else job.get("received_at")
+    if raw:
+        try:
+            return datetime.fromisoformat(str(raw))
+        except ValueError:
+            pass
+    return datetime.now().astimezone()
+
+
+def _empty_transcript_result(content: str) -> StructuredResult:
+    return StructuredResult(
+        language="pt",
+        needs_review=True,
+        tasks=[
+            StructuredTaskItem(
+                content=content,
+                project_suggestion=None,
+                project_confidence=0.0,
+            )
+        ],
+    )
+
+
+async def _create_todoist_tasks(
+    config: HubConfig,
+    *,
+    recording_id: str,
+    structured: StructuredResult,
+    projects: list[dict[str, str]],
+    cached_labels: list[str],
+) -> list[dict[str, Any]]:
+    created: list[dict[str, Any]] = []
+
+    for idx, task_spec in enumerate(structured.tasks):
+        route = route_task(
+            task_spec,
+            global_needs_review=structured.needs_review,
+            projects=projects,
+            threshold=config.confidence_threshold,
+        )
+        labels = merge_labels(
+            task_spec,
+            route,
+            always_label=config.todoist_always_label,
+            review_label=config.todoist_review_label,
+            cached_label_names=cached_labels,
+            global_needs_review=structured.needs_review,
+        )
+
+        parent = await asyncio.to_thread(
+            todoist.create_task,
+            config,
+            content=task_spec.content,
+            labels=labels,
+            project_id=route.project_id,
+            due_string=task_spec.due_string,
+            priority=task_spec.priority,
+            idempotency_key=f"{recording_id}:{idx}",
+        )
+
+        for sub_idx, sub_content in enumerate(task_spec.subtasks):
+            await asyncio.to_thread(
+                todoist.create_task,
+                config,
+                content=sub_content,
+                project_id=parent.get("project_id"),
+                parent_id=str(parent.get("id", "")),
+                idempotency_key=f"{recording_id}:{idx}:{sub_idx}",
+            )
+
+        created.append(
+            {
+                "todoist_id": str(parent.get("id", "")),
+                "content": task_spec.content,
+                "project": route.project_name,
+                "confidence": route.confidence,
+                "routed_to": route.routed_to,
+                "due": task_spec.due_string,
+                "priority": task_spec.priority,
+                "labels": labels,
+            }
+        )
+
+    return created
+
+
 async def process_job(engine: Engine, config: HubConfig, job: dict[str, Any]) -> None:
     recording_id = job["recording_id"]
     try:
@@ -32,35 +121,39 @@ async def process_job(engine: Engine, config: HubConfig, job: dict[str, Any]) ->
         transcript = (transcript or "").strip()
         db.set_transcript(engine, recording_id, transcript)
 
+        if not transcript:
+            structured = _empty_transcript_result(_EMPTY_TRANSCRIPT_CONTENT)
+        else:
+            db.set_status(engine, recording_id, "structuring")
+            llm = get_llm_provider(config)
+            structured = await asyncio.to_thread(
+                llm.structure,
+                transcript,
+                now=_reference_now(job),
+                projects=get_cached_project_names(engine),
+                labels=get_cached_label_names(engine),
+            )
+            db.set_llm_json(
+                engine,
+                recording_id,
+                structured.model_dump_json(),
+            )
+
         db.set_status(engine, recording_id, "creating")
-
-        needs_review = not transcript
-        content = transcript or _EMPTY_TRANSCRIPT_CONTENT
-        labels = [config.todoist_always_label]
-        if needs_review:
-            labels.append(config.todoist_review_label)
-
-        task = await asyncio.to_thread(
-            todoist.create_task,
+        projects = get_cached_projects(engine)
+        cached_labels = get_cached_label_names(engine)
+        created = await _create_todoist_tasks(
             config,
-            content=content,
-            labels=labels,
-            project_id=None,  # M2: sempre Inbox
-            idempotency_key=f"{recording_id}:0",
+            recording_id=recording_id,
+            structured=structured,
+            projects=projects,
+            cached_labels=cached_labels,
         )
-
-        created = [
-            {
-                "todoist_id": str(task.get("id", "")),
-                "content": content,
-                "project": None,
-                "routed_to": "inbox",
-                "labels": labels,
-            }
-        ]
         db.set_done(engine, recording_id, created)
         logger.info(
-            "Job %s done → Todoist task %s", recording_id, task.get("id")
+            "Job %s done → %d tarefa(s) no Todoist",
+            recording_id,
+            len(created),
         )
     except Exception as exc:  # noqa: BLE001 — registra e marca error
         db.increment_attempts(engine, recording_id)

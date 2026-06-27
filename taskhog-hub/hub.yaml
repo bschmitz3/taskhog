@@ -17,7 +17,7 @@ llm:
   api_key: "${LLM_API_KEY}"
   json_strict: true
   max_retries: 2
-  confidence_threshold: 0.75
+  confidence_threshold: 0.65
 
 todoist:
   token: "${TODOIST_TOKEN}"

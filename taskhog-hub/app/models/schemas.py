@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 HUB_VERSION = "0.1.0"
 
@@ -62,6 +62,31 @@ class TaskResult(BaseModel):
     due: str | None = None
     priority: int | None = None
     labels: list[str] = Field(default_factory=list)
+
+
+class StructuredTaskItem(BaseModel):
+    """Uma tarefa na saída estruturada da LLM (Spec 03 §5.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    content: str = Field(min_length=1)
+    project_suggestion: str | None
+    project_confidence: float = Field(ge=0.0, le=1.0)
+    due_string: str | None = None
+    priority: Literal[1, 2, 3, 4] | None = None
+    labels: list[str] = Field(default_factory=list)
+    subtasks: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+
+class StructuredResult(BaseModel):
+    """Saída completa da LLM após structuring (Spec 03 §5.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    language: str
+    needs_review: bool
+    tasks: list[StructuredTaskItem] = Field(min_length=1)
 
 
 class RecordingDetail(BaseModel):

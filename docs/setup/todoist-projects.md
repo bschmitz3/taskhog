@@ -19,3 +19,15 @@
 | `revisar` | Baixa confiança / Inbox triagem |
 
 Configurado em `hub.yaml` → `todoist.always_label` / `review_label`.
+
+## Dicas de roteamento (prompt LLM)
+
+| Projeto | Quando usar |
+|---|---|
+| **Compras** | supermercado, mercado, farmácia, itens de casa |
+| **Personal** | contador, médico, família, finanças pessoais |
+| **Magie** | trabalho, clientes, apresentações, reuniões profissionais |
+| **MagieLive** | lives, transmissões, conteúdo ao vivo |
+| **Inbox** | nunca sugerir na LLM — fallback automático do Hub |
+
+Threshold de confiança: `0.65` em `hub.yaml` → `llm.confidence_threshold`.

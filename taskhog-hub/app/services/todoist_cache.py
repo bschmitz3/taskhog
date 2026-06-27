@@ -92,7 +92,8 @@ def refresh_project_label_cache(
 
 
 def get_cached_project_names(engine: Engine) -> list[str]:
-    return [row["name"] for row in db.list_todoist_cache(engine, _KIND_PROJECT)]
+    names = [row["name"] for row in db.list_todoist_cache(engine, _KIND_PROJECT)]
+    return [n for n in names if n.casefold() != "inbox"]
 
 
 def get_cached_label_names(engine: Engine) -> list[str]:

@@ -196,6 +196,16 @@ def set_transcript(engine: Engine, recording_id: str, transcript: str) -> None:
         )
 
 
+def set_llm_json(engine: Engine, recording_id: str, llm_json: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE jobs SET llm_json = :j WHERE recording_id = :rid"
+            ),
+            {"j": llm_json, "rid": recording_id},
+        )
+
+
 def set_done(
     engine: Engine, recording_id: str, created_tasks: list[dict[str, Any]]
 ) -> None:
