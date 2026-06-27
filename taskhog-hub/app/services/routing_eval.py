@@ -11,7 +11,7 @@ from typing import Any
 from app.models.schemas import StructuredResult
 from app.services.confidence import RouteDecision, route_task
 
-FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "routing_phrases.json"
+FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "routing_phrases.json"
 
 DEFAULT_PROJECTS: list[dict[str, str]] = [
     {"ext_id": "6fmQVwv3P3V2m32g", "name": "Compras"},
