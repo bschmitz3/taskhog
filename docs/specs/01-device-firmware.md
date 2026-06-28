@@ -268,7 +268,7 @@ int       queue_error_count(void);
 
 ### 10.1 Conexão multi-AP
 
-- `wifi.json` guarda lista de redes `{ssid, psk}` (casa, trabalho, hotspot).
+- `wifi.json` guarda lista de redes `{ssid, psk}` (casa, trabalho, hotspot). Arquivo físico no SD: **`wifi.cfg`** (FAT 8.3).
 - Ao precisar de rede: scan → conectar à de maior RSSI conhecida → checar `GET {hub}/v1/health`.
 - Se nenhuma rede conhecida ou Hub inalcançável → voltar a IDLE/dormir (fila intacta).
 
@@ -309,11 +309,11 @@ sync_run():
 
 ### 10.5 Status de implementação (M3 — código completo, validação em device pendente)
 
-- `wifi_sta`: STA conecta sob demanda à rede do Kconfig (`TASKHOG_WIFI_SSID/PASSWORD`); event group + retry; publica o ícone de Wi-Fi na barra de status (`widget_set_wifi_state`).
+- `wifi_sta`: STA on-demand; carrega redes de `wifi.cfg` (fallback Kconfig); **scan + maior RSSI**; event group + retry; ícone Wi-Fi na barra.
 - `http_uploader`: `http_uploader_health()` e `http_uploader_upload()` (multipart `metadata`+`audio`, streaming do WAV do SD em blocos de 1 KB, TLS via `esp_crt_bundle_attach`). Metadata conforme Spec 03 §2.
 - `sync_engine`: task própria; `sync_engine_drain()` faz connect → health → snapshot FIFO de pendentes → upload por job com transições no `.job`. Disparada ao entrar em `SYNC` e automaticamente após `CONFIRM`/`BOOT` se há fila.
 - Configuração por `main/Kconfig.projbuild` (menu **Taskhog**): SSID, senha, `HUB_URL`, `DEVICE_TOKEN`, `SYNC_MAX_ATTEMPTS`. SSID vazio = sync desligado (device segue gravando offline).
-- **Pendências (pós-M3):** §10.1 multi-AP/`wifi.json`; §10.4 NTP→RTC; backoff exponencial fino; confirmação `done` do Hub para mover WAV/`.job` p/ `sent/` (M5).
+- **Pendências (pós-M3):** ~~§10.1 multi-AP/`wifi.cfg`~~ ✅ · §10.4 NTP→RTC; confirmação `done` do Hub para mover WAV/`.job` p/ `sent/` (M5).
 
 ---
 

@@ -8,7 +8,7 @@
 esp_err_t wifi_sta_init(void);
 esp_err_t wifi_sta_deinit(void);
 
-/** Conecta à rede configurada (Kconfig) e aguarda IP até timeout_ms. */
+/** Conecta à melhor rede conhecida (scan + maior RSSI) e aguarda IP até timeout_ms. */
 esp_err_t wifi_sta_connect(uint32_t timeout_ms);
 
 /** Desassocia (mantém o driver inicializado). */

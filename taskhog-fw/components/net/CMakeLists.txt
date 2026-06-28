@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "wifi_sta.c"
+        "wifi_profiles.c"
         "sync_engine.c"
         "http_uploader.c"
         "time_sync.c"
