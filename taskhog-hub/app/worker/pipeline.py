@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from app.models import db
 from app.models.schemas import StructuredResult, StructuredTaskItem
 from app.services import todoist, transcribe
+from app.services.audio_retention import after_job_done
 from app.services.confidence import merge_labels, route_task
 from app.services.llm.base import get_llm_provider
 from app.services.todoist_cache import get_cached_label_names, get_cached_project_names, get_cached_projects
@@ -182,6 +183,7 @@ async def process_job(engine: Engine, config: HubConfig, job: dict[str, Any]) ->
             created.extend(new_tasks)
 
         db.set_done(engine, recording_id, created)
+        after_job_done(engine, config, recording_id, job.get("wav_path"))
         logger.info(
             "Job %s done → %d tarefa(s) no Todoist",
             recording_id,

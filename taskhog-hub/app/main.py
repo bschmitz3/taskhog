@@ -13,6 +13,7 @@ from app.config import load_config
 from app.deps import bind_tokens
 from app.models.db import create_db_engine, init_db
 from app.services import todoist_cache, transcribe
+from app.services.audio_retention import purge_expired, purge_interval_seconds
 from app.worker import queue as worker_queue
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,18 @@ async def _todoist_cache_refresh_loop(app: FastAPI) -> None:
             )
         except Exception:
             logger.exception("Refresh periódico do cache Todoist falhou")
+
+
+async def _audio_purge_loop(app: FastAPI) -> None:
+    config = app.state.config
+    engine = app.state.engine
+
+    while True:
+        await asyncio.sleep(purge_interval_seconds())
+        try:
+            await asyncio.to_thread(purge_expired, engine, config)
+        except Exception:
+            logger.exception("Purge periódico de áudio falhou")
 
 
 @asynccontextmanager
@@ -62,13 +75,19 @@ async def lifespan(app: FastAPI):
     cache_task = asyncio.create_task(_todoist_cache_refresh_loop(app))
     app.state.cache_refresh_task = cache_task
 
+    await asyncio.to_thread(purge_expired, engine, config)
+    purge_task = asyncio.create_task(_audio_purge_loop(app))
+    app.state.audio_purge_task = purge_task
+
     worker_queue.start_worker(app)
 
     yield
 
     cache_task.cancel()
+    purge_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await cache_task
+        await purge_task
     await worker_queue.stop_worker(app)
     engine.dispose()
 

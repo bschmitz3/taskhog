@@ -7,7 +7,7 @@
 
 ## 📍 Checkpoint — sessão 2026-06-27 (retomar daqui)
 
-**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ · **M5-T1+T2 fw** · **M5-T6 hub (código)** · validação device/QA pendente
+**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ · **M5-T1+T2 fw** · **M5-T5+T6 hub (código)** · validação device/QA pendente
 
 ### Pendente — bateria de testes no device (antes de fechar M5)
 

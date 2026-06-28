@@ -251,6 +251,30 @@ def append_created_task(
     return created
 
 
+def clear_wav_path(engine: Engine, recording_id: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE jobs SET wav_path = '' WHERE recording_id = :rid"),
+            {"rid": recording_id},
+        )
+
+
+def list_done_jobs_with_wav_before(
+    engine: Engine, received_before: str
+) -> list[dict[str, Any]]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                f"SELECT recording_id, wav_path FROM jobs "
+                "WHERE status = 'done' AND wav_path != '' "
+                "AND received_at < :before "
+                "ORDER BY received_at"
+            ),
+            {"before": received_before},
+        ).all()
+    return [{"recording_id": row.recording_id, "wav_path": row.wav_path} for row in rows]
+
+
 def increment_attempts(engine: Engine, recording_id: str) -> None:
     with engine.begin() as conn:
         conn.execute(
