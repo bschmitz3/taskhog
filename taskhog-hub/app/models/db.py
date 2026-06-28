@@ -38,8 +38,17 @@ CREATE TABLE IF NOT EXISTS todoist_cache (
   PRIMARY KEY (kind, ext_id)
 );
 
+CREATE TABLE IF NOT EXISTS todoist_task_keys (
+  idempotency_key TEXT PRIMARY KEY,
+  recording_id    TEXT NOT NULL,
+  todoist_id      TEXT NOT NULL,
+  content         TEXT NOT NULL,
+  created_at      TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_received ON jobs(received_at);
+CREATE INDEX IF NOT EXISTS idx_todoist_keys_recording ON todoist_task_keys(recording_id);
 """
 
 
@@ -331,6 +340,66 @@ def get_last_task(engine: Engine) -> dict[str, Any] | None:
         "project": first.get("project"),
         "routed_to": first.get("routed_to"),
     }
+
+
+# --- Idempotência Todoist por tarefa (M5-T3) ---------------------------------
+
+def get_todoist_task_by_key(
+    engine: Engine, idempotency_key: str
+) -> dict[str, Any] | None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT todoist_id, content, recording_id FROM todoist_task_keys "
+                "WHERE idempotency_key = :key"
+            ),
+            {"key": idempotency_key},
+        ).first()
+    if row is None:
+        return None
+    return {
+        "id": row.todoist_id,
+        "content": row.content,
+        "project_id": None,
+        "recording_id": row.recording_id,
+    }
+
+
+def put_todoist_task_key(
+    engine: Engine,
+    *,
+    idempotency_key: str,
+    recording_id: str,
+    todoist_id: str,
+    content: str,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT OR IGNORE INTO todoist_task_keys "
+                "(idempotency_key, recording_id, todoist_id, content, created_at) "
+                "VALUES (:key, :rid, :tid, :content, :at)"
+            ),
+            {
+                "key": idempotency_key,
+                "rid": recording_id,
+                "tid": todoist_id,
+                "content": content,
+                "at": now_iso(),
+            },
+        )
+
+
+def count_todoist_task_keys(engine: Engine, recording_id: str) -> int:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT COUNT(*) AS n FROM todoist_task_keys "
+                "WHERE recording_id = :rid"
+            ),
+            {"rid": recording_id},
+        ).one()
+        return int(row.n)
 
 
 # --- Cache Todoist (M4-T1) ---------------------------------------------------

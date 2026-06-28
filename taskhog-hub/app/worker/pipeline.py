@@ -10,11 +10,12 @@ from typing import TYPE_CHECKING, Any
 
 from app.models import db
 from app.models.schemas import StructuredResult, StructuredTaskItem
-from app.services import todoist, transcribe
+from app.services import transcribe
 from app.services.audio_retention import after_job_done
 from app.services.confidence import merge_labels, route_task
 from app.services.llm.base import get_llm_provider
 from app.services.todoist_cache import get_cached_label_names, get_cached_project_names, get_cached_projects
+from app.services.todoist_idempotency import create_task_idempotent
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
@@ -72,6 +73,7 @@ def _load_structured(job: dict[str, Any], transcript: str, config: HubConfig, en
 
 
 async def _create_todoist_tasks(
+    engine: Engine,
     config: HubConfig,
     *,
     recording_id: str,
@@ -103,24 +105,29 @@ async def _create_todoist_tasks(
         )
 
         parent = await asyncio.to_thread(
-            todoist.create_task,
+            create_task_idempotent,
+            engine,
             config,
+            recording_id=recording_id,
+            task_idx=idx,
             content=task_spec.content,
             labels=labels,
             project_id=route.project_id,
             due_string=task_spec.due_string,
             priority=task_spec.priority,
-            idempotency_key=f"{recording_id}:{idx}",
         )
 
         for sub_idx, sub_content in enumerate(task_spec.subtasks):
             await asyncio.to_thread(
-                todoist.create_task,
+                create_task_idempotent,
+                engine,
                 config,
+                recording_id=recording_id,
+                task_idx=idx,
+                sub_idx=sub_idx,
                 content=sub_content,
                 project_id=parent.get("project_id"),
                 parent_id=str(parent.get("id", "")),
-                idempotency_key=f"{recording_id}:{idx}:{sub_idx}",
             )
 
         task_result = {
@@ -172,6 +179,7 @@ async def process_job(engine: Engine, config: HubConfig, job: dict[str, Any]) ->
                 db.append_created_task(engine, recording_id, task)
 
             new_tasks = await _create_todoist_tasks(
+                engine,
                 config,
                 recording_id=recording_id,
                 structured=structured,

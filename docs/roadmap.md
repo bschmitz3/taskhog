@@ -7,7 +7,7 @@
 
 ## 📍 Checkpoint — sessão 2026-06-27 (retomar daqui)
 
-**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ · **M5 fw T1+T2+T4** · **M5 hub T5+T6** · QA pendente
+**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ · **M5 código completo** · QA device pendente (`docs/setup/M5-chaos-checklist.md`)
 
 ### Pendente — bateria de testes no device (antes de fechar M5)
 
@@ -286,11 +286,11 @@ Script de validação: `taskhog-hub/scripts/test_e2e.sh`.
 |---|---|:---:|---|
 | M5-T1 | Journal append-only + recuperação no boot (jobs órfãos/"uploading"→"queued") | L | Spec 01 §9.3 |
 | M5-T2 | Sync engine completo: FIFO, **backoff exponencial**, `MAX_ATTEMPTS`, marcação de erro | M | Spec 01 §10.3 |
-| M5-T3 | Idempotência por tarefa no Hub (`idempotency_key` por task) | M | Spec 02 §10.5, Spec 03 §10 |
+| M5-T3 | Idempotência por tarefa no Hub (`idempotency_key` por task) | M | Spec 02 §10.5, Spec 03 §10 | ✅ código |
 | M5-T4 | Wi-Fi multi-AP (casa/trabalho/hotspot), seleção por RSSI | M | Spec 01 §10.1 | ✅ código |
-| M5-T5 | Retenção/limpeza de WAV após `done` (`retain_audio_days`) | S | Spec 01 §9.2, Spec 02 §4 |
-| M5-T6 | Recuperação do Hub: reiniciar no meio de `creating` não duplica tarefa | M | Spec 02 §7, §10.5 |
-| M5-T7 | Testes de caos: corte de energia gravando; rede caindo no upload; SD removido | L | — |
+| M5-T5 | Retenção/limpeza de WAV após `done` (`retain_audio_days`) | S | Spec 01 §9.2, Spec 02 §4 | ✅ código |
+| M5-T6 | Recuperação do Hub: reiniciar no meio de `creating` não duplica tarefa | M | Spec 02 §7, §10.5 | ✅ código |
+| M5-T7 | Testes de caos: corte de energia gravando; rede caindo no upload; SD removido | L | `docs/setup/M5-chaos-checklist.md` | ✅ Hub auto |
 
 **🚦 Critério de saída M5:**
 - [ ] Bateria/queda no meio da gravação → no boot, fila íntegra (WAV incompleto sinalizado, não perdido).

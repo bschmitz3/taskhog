@@ -340,7 +340,8 @@ O contrato da LLM (Spec 03) usa o **valor da API (4=mais alta)**. "Prioridade al
 
 - 5xx/timeout → retry com backoff; job permanece `creating`.
 - 401/4xx permanente (token) → `status=error`; reflete em `/v1/status` (device mostra T10 "Erro Todoist").
-- Sempre aplicar `idempotency_key` por tarefa para o reprocessamento não duplicar.
+- Sempre aplicar `idempotency_key` por tarefa (`recording_id:índice[:sub]`) no header `X-Request-Id`.
+- **Store local (M5-T3):** tabela `todoist_task_keys` mapeia `idempotency_key → todoist_id` antes de chamar a API — a unified API v1 não garante dedupe só pelo header.
 
 ---
 
