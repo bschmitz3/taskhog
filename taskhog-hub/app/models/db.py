@@ -219,6 +219,38 @@ def set_done(
         )
 
 
+def load_created_tasks(job: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = job.get("created_tasks")
+    if not raw:
+        return []
+    try:
+        tasks = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return tasks if isinstance(tasks, list) else []
+
+
+def append_created_task(
+    engine: Engine, recording_id: str, task: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Persiste uma tarefa criada no Todoist (M5-T6 — resume após restart)."""
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT created_tasks FROM jobs WHERE recording_id = :rid"),
+            {"rid": recording_id},
+        ).one()
+        created = load_created_tasks({"created_tasks": row.created_tasks})
+        created.append(task)
+        conn.execute(
+            text("UPDATE jobs SET created_tasks = :ct WHERE recording_id = :rid"),
+            {
+                "ct": json.dumps(created, ensure_ascii=False),
+                "rid": recording_id,
+            },
+        )
+    return created
+
+
 def increment_attempts(engine: Engine, recording_id: str) -> None:
     with engine.begin() as conn:
         conn.execute(

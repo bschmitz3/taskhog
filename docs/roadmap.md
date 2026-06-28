@@ -7,14 +7,14 @@
 
 ## 📍 Checkpoint — sessão 2026-06-27 (retomar daqui)
 
-**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ (live, T7 skip) · **M5-T1+T2 código no device (flash pendente validação)**
+**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ · **M5-T1+T2 fw** · **M5-T6 hub (código)** · validação device/QA pendente
 
 ### Pendente — bateria de testes no device (antes de fechar M5)
 
 - [ ] **M5-T1 journal:** reset durante sync → boot mostra `recovery: … → queued` → reenvio sem duplicar no Todoist
 - [ ] **M5-T2 backoff:** Hub offline ou Wi-Fi ruim → logs `backoff N ms` → retentativas com delay 1s/2s/4s… → `ERROR` após 5 tentativas
 - [ ] **M4 regressão:** gravar → tarefa roteada no projeto certo (ex. Compras, Magie)
-- [ ] Conferir `journal/queue.journal` no SD após enqueue + mark
+- [ ] Conferir `journal/queue.jnl` no SD após enqueue + mark
 
 ### Infraestrutura operacional
 

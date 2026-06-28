@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +50,26 @@ def _empty_transcript_result(content: str) -> StructuredResult:
     )
 
 
+def _load_structured(job: dict[str, Any], transcript: str, config: HubConfig, engine: Engine) -> StructuredResult:
+    raw = job.get("llm_json")
+    if raw:
+        return StructuredResult.model_validate_json(raw)
+
+    if not transcript:
+        return _empty_transcript_result(_EMPTY_TRANSCRIPT_CONTENT)
+
+    db.set_status(engine, job["recording_id"], "structuring")
+    llm = get_llm_provider(config)
+    structured = llm.structure(
+        transcript,
+        now=_reference_now(job),
+        projects=get_cached_project_names(engine),
+        labels=get_cached_label_names(engine),
+    )
+    db.set_llm_json(engine, job["recording_id"], structured.model_dump_json())
+    return structured
+
+
 async def _create_todoist_tasks(
     config: HubConfig,
     *,
@@ -56,10 +77,15 @@ async def _create_todoist_tasks(
     structured: StructuredResult,
     projects: list[dict[str, str]],
     cached_labels: list[str],
+    start_idx: int = 0,
+    on_task_created: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     created: list[dict[str, Any]] = []
 
     for idx, task_spec in enumerate(structured.tasks):
+        if idx < start_idx:
+            continue
+
         route = route_task(
             task_spec,
             global_needs_review=structured.needs_review,
@@ -96,18 +122,19 @@ async def _create_todoist_tasks(
                 idempotency_key=f"{recording_id}:{idx}:{sub_idx}",
             )
 
-        created.append(
-            {
-                "todoist_id": str(parent.get("id", "")),
-                "content": task_spec.content,
-                "project": route.project_name,
-                "confidence": route.confidence,
-                "routed_to": route.routed_to,
-                "due": task_spec.due_string,
-                "priority": task_spec.priority,
-                "labels": labels,
-            }
-        )
+        task_result = {
+            "todoist_id": str(parent.get("id", "")),
+            "content": task_spec.content,
+            "project": route.project_name,
+            "confidence": route.confidence,
+            "routed_to": route.routed_to,
+            "due": task_spec.due_string,
+            "priority": task_spec.priority,
+            "labels": labels,
+        }
+        created.append(task_result)
+        if on_task_created is not None:
+            on_task_created(task_result)
 
     return created
 
@@ -115,47 +142,64 @@ async def _create_todoist_tasks(
 async def process_job(engine: Engine, config: HubConfig, job: dict[str, Any]) -> None:
     recording_id = job["recording_id"]
     try:
-        transcript = await asyncio.to_thread(
-            transcribe.transcribe, job["wav_path"], config
-        )
-        transcript = (transcript or "").strip()
-        db.set_transcript(engine, recording_id, transcript)
+        job = db.get_job(engine, recording_id) or job
 
-        if not transcript:
-            structured = _empty_transcript_result(_EMPTY_TRANSCRIPT_CONTENT)
+        transcript = job.get("transcript")
+        if transcript is not None:
+            transcript = transcript.strip()
         else:
-            db.set_status(engine, recording_id, "structuring")
-            llm = get_llm_provider(config)
-            structured = await asyncio.to_thread(
-                llm.structure,
-                transcript,
-                now=_reference_now(job),
-                projects=get_cached_project_names(engine),
-                labels=get_cached_label_names(engine),
+            transcript = await asyncio.to_thread(
+                transcribe.transcribe, job["wav_path"], config
             )
-            db.set_llm_json(
-                engine,
-                recording_id,
-                structured.model_dump_json(),
-            )
+            transcript = (transcript or "").strip()
+            db.set_transcript(engine, recording_id, transcript)
+
+        structured = await asyncio.to_thread(
+            _load_structured, job, transcript, config, engine
+        )
+
+        created = db.load_created_tasks(job)
+        start_idx = len(created)
 
         db.set_status(engine, recording_id, "creating")
         projects = get_cached_projects(engine)
         cached_labels = get_cached_label_names(engine)
-        created = await _create_todoist_tasks(
-            config,
-            recording_id=recording_id,
-            structured=structured,
-            projects=projects,
-            cached_labels=cached_labels,
-        )
+
+        if start_idx < len(structured.tasks):
+
+            def persist_task(task: dict[str, Any]) -> None:
+                db.append_created_task(engine, recording_id, task)
+
+            new_tasks = await _create_todoist_tasks(
+                config,
+                recording_id=recording_id,
+                structured=structured,
+                projects=projects,
+                cached_labels=cached_labels,
+                start_idx=start_idx,
+                on_task_created=persist_task,
+            )
+            created.extend(new_tasks)
+
         db.set_done(engine, recording_id, created)
         logger.info(
             "Job %s done → %d tarefa(s) no Todoist",
             recording_id,
             len(created),
         )
-    except Exception as exc:  # noqa: BLE001 — registra e marca error
+    except Exception as exc:  # noqa: BLE001 — registra e marca error/requeue
+        job = db.get_job(engine, recording_id) or job
+        partial = db.load_created_tasks(job)
+        if partial or job.get("status") == "creating":
+            db.set_status(engine, recording_id, "queued")
+            logger.warning(
+                "Job %s interrompido em creating — requeued (%d tarefa(s) já criadas): %s",
+                recording_id,
+                len(partial),
+                exc,
+            )
+            return
+
         db.increment_attempts(engine, recording_id)
         db.set_status(engine, recording_id, "error", error=str(exc)[:500])
         logger.exception("Job %s erro no pipeline", recording_id)

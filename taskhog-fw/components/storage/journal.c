@@ -1,5 +1,6 @@
 #include "journal.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -13,18 +14,28 @@
 static const char *TAG = "journal";
 
 #define JOURNAL_DIR  BOARD_SD_MOUNT_POINT "/journal"
-#define JOURNAL_PATH BOARD_SD_MOUNT_POINT "/journal/queue.journal"
+/* FAT sem LFN (M0): extensão ≤3 chars — "queue.journal" falha no fopen. */
+#define JOURNAL_PATH BOARD_SD_MOUNT_POINT "/journal/queue.jnl"
 
 static FILE *s_journal;
+
+static void log_fs_err(const char *op, const char *path)
+{
+    ESP_LOGE(TAG, "%s %s falhou — errno=%d (%s)", op, path, errno, strerror(errno));
+}
 
 static esp_err_t ensure_journal_dir(void)
 {
     struct stat st;
     if (stat(JOURNAL_DIR, &st) == 0) {
-        return S_ISDIR(st.st_mode) ? ESP_OK : ESP_FAIL;
+        if (!S_ISDIR(st.st_mode)) {
+            ESP_LOGE(TAG, "%s existe mas não é diretório", JOURNAL_DIR);
+            return ESP_FAIL;
+        }
+        return ESP_OK;
     }
     if (mkdir(JOURNAL_DIR, 0755) != 0) {
-        ESP_LOGE(TAG, "mkdir %s falhou", JOURNAL_DIR);
+        log_fs_err("mkdir", JOURNAL_DIR);
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -37,7 +48,7 @@ static esp_err_t open_journal_append(void)
     }
     s_journal = fopen(JOURNAL_PATH, "a");
     if (s_journal == NULL) {
-        ESP_LOGE(TAG, "fopen %s falhou", JOURNAL_PATH);
+        log_fs_err("fopen", JOURNAL_PATH);
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -96,6 +107,11 @@ esp_err_t journal_init(void)
     err = journal_recover();
     if (err != ESP_OK) {
         return err;
+    }
+
+    if (open_journal_append() != ESP_OK) {
+        ESP_LOGW(TAG, "journal indisponível — recovery via .job continua");
+        return ESP_OK;
     }
 
     ESP_LOGI(TAG, "journal pronto (%s)", JOURNAL_PATH);

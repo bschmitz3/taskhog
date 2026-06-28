@@ -259,7 +259,7 @@ int       queue_error_count(void);
 
 ### 9.3 Escrita segura / power-loss
 
-- **Journal append-only** (`journal/queue.journal`): cada transição de job é uma linha. No boot, reproduzir o journal para reconstruir o estado real da fila (arquivos órfãos, jobs em "uploading" → voltam a "queued").
+- **Journal append-only** (`journal/queue.jnl` — nome físico FAT 8.3; SD sem LFN): cada transição de job é uma linha. No boot, reproduzir o journal para reconstruir o estado real da fila (arquivos órfãos, jobs em "uploading" → voltam a "queued").
 - WAV é considerado válido só após o header ser "patchado" com o tamanho final. WAV sem patch (crash no meio) → marcar como `error: incomplete` e reter para inspeção.
 
 ---
