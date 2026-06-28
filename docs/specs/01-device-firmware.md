@@ -313,7 +313,7 @@ sync_run():
 - `http_uploader`: `http_uploader_health()` e `http_uploader_upload()` (multipart `metadata`+`audio`, streaming do WAV do SD em blocos de 1 KB, TLS via `esp_crt_bundle_attach`). Metadata conforme Spec 03 §2.
 - `sync_engine`: task própria; `sync_engine_drain()` faz connect → health → snapshot FIFO de pendentes → upload por job com transições no `.job`. Disparada ao entrar em `SYNC` e automaticamente após `CONFIRM`/`BOOT` se há fila.
 - Configuração por `main/Kconfig.projbuild` (menu **Taskhog**): SSID, senha, `HUB_URL`, `DEVICE_TOKEN`, `SYNC_MAX_ATTEMPTS`. SSID vazio = sync desligado (device segue gravando offline).
-- **Pendências (pós-M3):** ~~§10.1 multi-AP/`wifi.cfg`~~ ✅ · §10.4 NTP→RTC; confirmação `done` do Hub para mover WAV/`.job` p/ `sent/` (M5).
+- **Pendências (pós-M3):** ~~§10.1 multi-AP/`wifi.cfg`~~ ✅ · §10.4 NTP→RTC · ~~confirmação `done` → `sent/`~~ ✅
 
 ---
 

@@ -63,6 +63,12 @@ esp_err_t queue_mark_uploaded(const char *id, const char *hub_recording_id);
 /** Snapshot dos ids pendentes (QUEUED/ERROR) por ordem FIFO; retorna a contagem. */
 int queue_list_pending(char ids[][24], int max);
 
+/** Snapshot dos ids aguardando Hub (UPLOADED/PROCESSING), FIFO. */
+int queue_list_hub_pending(char ids[][24], int max);
+
+/** Jobs com upload aceito mas Hub ainda não `done`. */
+int queue_hub_pending_count(void);
+
 int queue_pending_count(void);
 int queue_error_count(void);
 

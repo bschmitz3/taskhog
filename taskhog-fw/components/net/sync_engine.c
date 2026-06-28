@@ -18,6 +18,7 @@ static const char *TAG = "sync_engine";
 #define BACKOFF_BASE_MS        1000
 #define BACKOFF_CAP_MS         60000
 #define MAX_RETRY_SLOTS        16
+#define HUB_POLL_INTERVAL_MS   5000
 
 typedef struct {
     char id[24];
@@ -135,6 +136,48 @@ static bool should_skip_job(const job_t *job, int max_attempts)
     return false;
 }
 
+static int poll_hub_jobs(void)
+{
+    char ids[MAX_PENDING_SNAPSHOT][24];
+    int count = queue_list_hub_pending(ids, MAX_PENDING_SNAPSHOT);
+    if (count == 0) {
+        return 0;
+    }
+
+    int completed = 0;
+    for (int i = 0; i < count; i++) {
+        job_t job;
+        if (queue_get(ids[i], &job) != ESP_OK) {
+            continue;
+        }
+        if (job.hub_recording_id[0] == '\0') {
+            continue;
+        }
+
+        char hub_status[16] = {0};
+        char hub_error[64] = {0};
+        if (http_uploader_poll_status(job.hub_recording_id, hub_status, sizeof(hub_status),
+                                      hub_error, sizeof(hub_error)) != ESP_OK) {
+            continue;
+        }
+
+        if (strcmp(hub_status, "done") == 0) {
+            queue_mark(ids[i], JOB_STATE_DONE, NULL);
+            if (queue_complete(ids[i]) == ESP_OK) {
+                completed++;
+                ESP_LOGI(TAG, "%s Hub done → sent/", ids[i]);
+            }
+        } else if (strcmp(hub_status, "error") == 0) {
+            const char *msg = hub_error[0] ? hub_error : "hub error";
+            queue_mark(ids[i], JOB_STATE_ERROR, msg);
+            ESP_LOGW(TAG, "%s Hub error: %s", ids[i], msg);
+        } else {
+            queue_mark(ids[i], JOB_STATE_PROCESSING, NULL);
+        }
+    }
+    return completed;
+}
+
 void sync_engine_set_done_cb(sync_done_cb_t cb)
 {
     s_done_cb = cb;
@@ -144,35 +187,39 @@ int sync_engine_drain(void)
 {
     /* Snapshot da fila ANTES de Wi-Fi/TLS — SDIO + RF concorrente falha leitura FAT. */
     char ids[MAX_PENDING_SNAPSHOT][24];
-    int count = queue_list_pending(ids, MAX_PENDING_SNAPSHOT);
-    if (count == 0) {
+    int upload_count = queue_list_pending(ids, MAX_PENDING_SNAPSHOT);
+    int hub_count = queue_hub_pending_count();
+
+    if (upload_count == 0 && hub_count == 0) {
         ESP_LOGI(TAG, "nada pendente");
         return 0;
     }
 
     const int max_attempts = config_sync_max_attempts();
     int eligible = 0;
-    for (int i = 0; i < count; i++) {
-        job_t job;
-        if (queue_get(ids[i], &job) != ESP_OK) {
-            continue;
+    if (upload_count > 0) {
+        for (int i = 0; i < upload_count; i++) {
+            job_t job;
+            if (queue_get(ids[i], &job) != ESP_OK) {
+                continue;
+            }
+            if (job.state != JOB_STATE_QUEUED && job.state != JOB_STATE_ERROR) {
+                continue;
+            }
+            if (should_skip_job(&job, max_attempts)) {
+                continue;
+            }
+            uint32_t remaining = 0;
+            if (!retry_ready(ids[i], &remaining)) {
+                ESP_LOGI(TAG, "%s em backoff (%lu ms)", ids[i], (unsigned long)remaining);
+                continue;
+            }
+            eligible++;
         }
-        if (job.state != JOB_STATE_QUEUED && job.state != JOB_STATE_ERROR) {
-            continue;
-        }
-        if (should_skip_job(&job, max_attempts)) {
-            continue;
-        }
-        uint32_t remaining = 0;
-        if (!retry_ready(ids[i], &remaining)) {
-            ESP_LOGI(TAG, "%s em backoff (%lu ms)", ids[i], (unsigned long)remaining);
-            continue;
-        }
-        eligible++;
     }
 
-    if (eligible == 0) {
-        ESP_LOGI(TAG, "%d pendente(s), nenhum pronto (backoff)", count);
+    if (eligible == 0 && hub_count == 0) {
+        ESP_LOGI(TAG, "%d pendente(s), nenhum pronto (backoff)", upload_count);
         return 0;
     }
 
@@ -188,7 +235,7 @@ int sync_engine_drain(void)
 
     int sent = 0;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < upload_count; i++) {
         job_t job;
         if (queue_get(ids[i], &job) != ESP_OK) {
             continue;
@@ -226,9 +273,11 @@ int sync_engine_drain(void)
         }
     }
 
-    ESP_LOGI(TAG, "drenagem concluída: %d/%d enviados", sent, eligible);
+    int moved = poll_hub_jobs();
+
+    ESP_LOGI(TAG, "drenagem concluída: %d/%d enviados, %d → sent/", sent, eligible, moved);
     wifi_sta_drop();
-    return sent;
+    return sent + moved;
 }
 
 static void sync_task(void *arg)
@@ -240,11 +289,15 @@ static void sync_task(void *arg)
         for (;;) {
             sync_engine_drain();
             uint32_t delay_ms = next_retry_delay_ms();
-            if (delay_ms == 0 || queue_pending_hint() <= 0) {
+            if (delay_ms == 0 && queue_pending_hint() <= 0 && queue_hub_pending_count() <= 0) {
                 break;
             }
-            ESP_LOGI(TAG, "aguardando backoff %lu ms antes de re-tentar", (unsigned long)delay_ms);
-            vTaskDelay(pdMS_TO_TICKS(delay_ms));
+            if (delay_ms > 0) {
+                ESP_LOGI(TAG, "aguardando backoff %lu ms antes de re-tentar", (unsigned long)delay_ms);
+                vTaskDelay(pdMS_TO_TICKS(delay_ms));
+            } else if (queue_hub_pending_count() > 0) {
+                vTaskDelay(pdMS_TO_TICKS(HUB_POLL_INTERVAL_MS));
+            }
         }
 
         if (s_done_cb != NULL) {

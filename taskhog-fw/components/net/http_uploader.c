@@ -220,3 +220,72 @@ done:
     esp_http_client_cleanup(client);
     return err;
 }
+
+esp_err_t http_uploader_poll_status(const char *recording_id,
+                                    char *hub_status,
+                                    size_t hub_status_len,
+                                    char *hub_error,
+                                    size_t hub_error_len)
+{
+    if (recording_id == NULL || recording_id[0] == '\0' || hub_status == NULL || hub_status_len == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    hub_status[0] = '\0';
+    if (hub_error != NULL && hub_error_len > 0) {
+        hub_error[0] = '\0';
+    }
+
+    char url[192];
+    snprintf(url, sizeof(url), "%s/v1/recordings/%s", config_hub_url(), recording_id);
+
+    esp_http_client_config_t cfg = {
+        .url = url,
+        .method = HTTP_METHOD_GET,
+        .timeout_ms = 12000,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (client == NULL) {
+        return ESP_FAIL;
+    }
+
+    char auth[160];
+    snprintf(auth, sizeof(auth), "Bearer %s", config_device_token());
+    esp_http_client_set_header(client, "Authorization", auth);
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+        esp_http_client_cleanup(client);
+        return err;
+    }
+    esp_http_client_fetch_headers(client);
+    int code = esp_http_client_get_status_code(client);
+    char body[512];
+    int bl = esp_http_client_read_response(client, body, sizeof(body) - 1);
+    if (bl < 0) {
+        bl = 0;
+    }
+    body[bl] = '\0';
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    if (err != ESP_OK || code != 200) {
+        ESP_LOGW(TAG, "poll %s falhou (err=%s http=%d)", recording_id,
+                 esp_err_to_name(err), code);
+        return ESP_FAIL;
+    }
+
+    if (!parse_str_field(body, "status", hub_status, hub_status_len)) {
+        ESP_LOGW(TAG, "poll %s sem campo status", recording_id);
+        return ESP_FAIL;
+    }
+    if (hub_error != NULL && hub_error_len > 0) {
+        if (!parse_str_field(body, "error", hub_error, hub_error_len)) {
+            hub_error[0] = '\0';
+        } else if (strcmp(hub_error, "null") == 0) {
+            hub_error[0] = '\0';
+        }
+    }
+    ESP_LOGI(TAG, "poll %s → status=%s", recording_id, hub_status);
+    return ESP_OK;
+}

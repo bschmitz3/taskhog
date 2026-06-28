@@ -810,6 +810,97 @@ int queue_list_pending(char ids[][24], int max)
     return count;
 }
 
+static int list_jobs_by_states(const job_state_t *states, int state_count, char ids[][24], int max)
+{
+    if (ids == NULL || max <= 0 || states == NULL || state_count <= 0) {
+        return 0;
+    }
+
+    queue_lock();
+
+    DIR *dir = opendir(QUEUE_DIR);
+    if (dir == NULL) {
+        queue_unlock();
+        return 0;
+    }
+
+    uint16_t seqs[64];
+    char tmp_ids[64][24];
+    int cap = max < 64 ? max : 64;
+    int count = 0;
+
+    struct dirent *ent;
+    char path[PATH_MAX_LOCAL];
+    job_t job;
+    while ((ent = readdir(dir)) != NULL && count < cap) {
+        uint16_t n = 0;
+        if (!parse_queue_seq(ent->d_name, &n)) {
+            continue;
+        }
+        if (!queue_join_path(path, sizeof(path), QUEUE_DIR, ent->d_name)) {
+            continue;
+        }
+        if (read_job_file(path, &job) != ESP_OK) {
+            continue;
+        }
+        bool match = false;
+        for (int s = 0; s < state_count; s++) {
+            if (job.state == states[s]) {
+                match = true;
+                break;
+            }
+        }
+        if (!match) {
+            continue;
+        }
+        if (job.hub_recording_id[0] == '\0') {
+            continue;
+        }
+        seqs[count] = (uint16_t)n;
+        strncpy(tmp_ids[count], job.id, sizeof(tmp_ids[count]) - 1);
+        tmp_ids[count][sizeof(tmp_ids[count]) - 1] = '\0';
+        count++;
+    }
+    closedir(dir);
+
+    for (int i = 1; i < count; i++) {
+        uint16_t s = seqs[i];
+        char id[24];
+        strncpy(id, tmp_ids[i], sizeof(id));
+        int j = i - 1;
+        while (j >= 0 && seqs[j] > s) {
+            seqs[j + 1] = seqs[j];
+            strncpy(tmp_ids[j + 1], tmp_ids[j], sizeof(tmp_ids[j + 1]));
+            j--;
+        }
+        seqs[j + 1] = s;
+        strncpy(tmp_ids[j + 1], id, sizeof(tmp_ids[j + 1]));
+    }
+
+    for (int i = 0; i < count; i++) {
+        strncpy(ids[i], tmp_ids[i], 24 - 1);
+        ids[i][24 - 1] = '\0';
+    }
+
+    queue_unlock();
+    return count;
+}
+
+int queue_list_hub_pending(char ids[][24], int max)
+{
+    const job_state_t states[] = {JOB_STATE_UPLOADED, JOB_STATE_PROCESSING};
+    return list_jobs_by_states(states, 2, ids, max);
+}
+
+int queue_hub_pending_count(void)
+{
+    queue_lock();
+    int n = count_jobs_in_state_nolock(JOB_STATE_UPLOADED)
+            + count_jobs_in_state_nolock(JOB_STATE_PROCESSING);
+    queue_unlock();
+    return n;
+}
+
 esp_err_t queue_mark(const char *id, job_state_t state, const char *err)
 {
     queue_lock();
