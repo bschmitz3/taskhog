@@ -32,4 +32,28 @@ menu "Taskhog"
         default 5
         range 1 50
 
+    config TASKHOG_DEEP_SLEEP_ENABLE
+        bool "Enable deep sleep (portable / battery mode)"
+        default n
+        help
+            Quando ativo, o device entra em deep sleep após ficar IDLE.
+            Deixe desligado para desenvolvimento via USB com monitor serial.
+
+    config TASKHOG_DEEP_SLEEP_SKIP_ON_USB
+        bool "Skip auto sleep while USB is connected"
+        default y
+        depends on TASKHOG_DEEP_SLEEP_ENABLE
+
+    config TASKHOG_DEEP_SLEEP_IDLE_SEC
+        int "Seconds in IDLE before deep sleep"
+        default 15
+        range 3 300
+        depends on TASKHOG_DEEP_SLEEP_ENABLE
+
+    config TASKHOG_DEEP_SLEEP_TIMER_MIN
+        int "Internal timer wake interval (minutes)"
+        default 60
+        range 1 1440
+        depends on TASKHOG_DEEP_SLEEP_ENABLE
+
 endmenu

@@ -5,16 +5,46 @@
 
 ---
 
-## 📍 Checkpoint — sessão 2026-06-27 (retomar daqui)
+## 📍 Checkpoint — sessão 2026-06-28 (retomar daqui)
 
-**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ · **M5 código completo** · QA device pendente (`docs/setup/M5-chaos-checklist.md`)
+**Status geral:** M0 ✅ · M0.5 ✅ · M1 ✅ · M2 ✅ · M3 ✅ E2E · M4 ✅ · M5 código ✅ · **M6 fw T1+T2** (fix latch GPIO17) · QA device pendente
 
-### Pendente — bateria de testes no device (antes de fechar M5)
+**Doc completo:** `docs/decisions/004-session-checkpoint-2026-06-28.md`
 
-- [ ] **M5-T1 journal:** reset durante sync → boot mostra `recovery: … → queued` → reenvio sem duplicar no Todoist
-- [ ] **M5-T2 backoff:** Hub offline ou Wi-Fi ruim → logs `backoff N ms` → retentativas com delay 1s/2s/4s… → `ERROR` após 5 tentativas
-- [ ] **M4 regressão:** gravar → tarefa roteada no projeto certo (ex. Compras, Magie)
-- [ ] Conferir `journal/queue.jnl` no SD após enqueue + mark
+### Feito nesta sessão
+
+- **M5-T3/T7:** commit `3ed76b5`, Hub deployado, pytest M5 verde
+- **M5 QA:** D2 (Hub stop no upload) validado — 1 tarefa Todoist
+- **M6-T1/T2:** `power_mgr` deep sleep + wake sources + boot dispatch
+- **Fix:** `board_power_sleep_latch()` — GPIO17 HIGH no deep sleep (REC wake)
+- **Default dev:** deep sleep OFF em `sdkconfig.defaults`
+
+### Pendente — QA device (rodada separada)
+
+Checklist: `docs/setup/M5-chaos-checklist.md`
+
+- [x] D2 — reenvio sem duplicar (Todoist)
+- [ ] D1, D3, D4, D5, D6
+- [ ] M5-T1 journal recovery · M5-T2 backoff · M4 regressão
+- [ ] Limpar SD: `queue/` com `.job` órfãos (`read_fail` nos logs)
+- [ ] Revalidar M6 wake REC após reflash com fix latch
+
+### Firmware — comandos rápidos
+
+```bash
+cd taskhog-fw
+idf.py -p /dev/cu.usbmodem13301 flash monitor
+```
+
+Deep sleep ON (teste): `idf.py menuconfig` → Taskhog → Enable deep sleep.
+
+Placa morta pós-sleep: **PWR** uma vez, depois flash.
+
+| Item | Valor |
+|---|---|
+| Build | ~`0x136270` bytes |
+| USB | `/dev/cu.usbmodem13301` |
+| Log dev | `power_mgr: deep sleep OFF` |
 
 ### Infraestrutura operacional
 
@@ -39,9 +69,9 @@ Health esperado (LAN e remoto):
 
 | Item | Valor |
 |---|---|
-| Build atual | `taskhog-fw.bin` ~**0x6e6a0** bytes (pós-M0, sem gates no boot) |
+| Build atual | `taskhog-fw.bin` ~**0x136270** bytes (M6-T1/T2 + latch GPIO17) |
 | USB (Mac) | `/dev/cu.usbmodem13301` |
-| Boot | init normal → `Taskhog firmware scaffold ready (state=IDLE)` |
+| Boot | `power_mgr: deep sleep OFF` (default dev) → `state=IDLE` |
 | Gates M0 | permanecem em `main/m0_*_gate.c` para re-teste manual |
 
 **Bugs M0 corrigidos nesta sessão:**
@@ -305,8 +335,8 @@ Script de validação: `taskhog-hub/scripts/test_e2e.sh`.
 
 | # | Tarefa | Esforço | Ref |
 |---|---|:---:|---|
-| M6-T1 | Deep sleep como default + despacho por causa de wake no boot | L | Spec 01 §5, §7.1 |
-| M6-T2 | Wake sources: REC (ext0), RTC_INT/alarme (ext1, GPIO5), USB, timer interno | M | Spec 01 §7.1 |
+| M6-T1 | Deep sleep como default + despacho por causa de wake no boot | L | Spec 01 §5, §7.1 | ✅ código |
+| M6-T2 | Wake sources: REC (ext0), RTC_INT/alarme (ext1, GPIO5), USB, timer interno | M | Spec 01 §7.1 | ✅ código |
 | M6-T3 | Caminho rápido REC→RECORDING ≤300ms (sem montar Wi-Fi/tela cheia antes) | M | Spec 01 §5 |
 | M6-T4 | Gate de bateria (faixas Normal/Economia/Crítico/Shutdown) + `SAFE_OFF` | M | Spec 01 §7.3 |
 | M6-T5 | Sync periódico via alarme do RTC quando há fila pendente | M | Spec 01 §7.1 |

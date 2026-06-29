@@ -40,7 +40,11 @@ docs/           # especificações e decisões
 2. **M0.5** — scaffold + contratos + infra Hub ✅ (`docs/decisions/003-m05-closeout.md`)
 3. **M1** — captura local offline: **código completo** (T1–T7); falta **validar no device** (gravar → WAV+`.job`; reabrir WAV no PC)
 4. **M2** — Hub MVP (Track B): ✅ **validado live** (2026-06-22, `hub.taskhog.win`): WAV → "Compra pão!" no Inbox + label `taskhog`, idempotência OK
-5. **M3** — integração E2E (device → Hub → Todoist): **código completo** (`components/net/`: wifi_sta + http_uploader + sync_engine; build verde). Falta: `idf.py menuconfig` (Wi-Fi/token), flashar e validar (falar → tarefa no Todoist ≤20s; offline mantém fila)
+5. **M3** — integração E2E (device → Hub → Todoist): **código completo**; validação device pendente (QA M5/M6).
+
+**M5** — código completo (Hub `3ed76b5` em prod); QA device parcial (`docs/setup/M5-chaos-checklist.md`, D2 OK).
+
+**M6** — **T1+T2 código** (deep sleep + wake); fix latch GPIO17; flash pendente; retomar em `docs/decisions/004-session-checkpoint-2026-06-28.md`.
 
 **URLs Hub:** LAN `http://192.168.100.227:8088` · remoto `https://hub.taskhog.win`
 

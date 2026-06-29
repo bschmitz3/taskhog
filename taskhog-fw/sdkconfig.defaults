@@ -40,3 +40,7 @@ CONFIG_MBEDTLS_AES_USE_INTERRUPT=n
 # MPI/RSA por polling: mesmo pool de IRQ esgotado; TLS (verificação de cert
 # Cloudflare no Hub) aborta com "No free interrupt inputs for RSA interrupt".
 CONFIG_MBEDTLS_MPI_USE_INTERRUPT=n
+
+# M6: deep sleep desligado por padrão (dev USB + monitor serial)
+# CONFIG_TASKHOG_DEEP_SLEEP_ENABLE is not set
+CONFIG_TASKHOG_DEEP_SLEEP_SKIP_ON_USB=y

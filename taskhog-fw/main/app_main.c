@@ -47,6 +47,11 @@ static void on_sync_done(void)
     state_machine_post_event(TASKHOG_EVENT_SYNC_DONE, NULL);
 }
 
+static void pre_deep_sleep(void)
+{
+    wifi_sta_drop();
+}
+
 static esp_err_t init_all_stubs(void)
 {
     ESP_RETURN_ON_ERROR(config_init(), TAG, "config");
@@ -91,7 +96,15 @@ static void taskhog_state_bridge(void *handler_arg,
     rec_worker_on_state_changed(state);
     screens_on_state_changed((screen_state_t)state);
 
-    if (state == TASKHOG_STATE_SYNC) {
+    if (state == TASKHOG_STATE_IDLE) {
+        power_mgr_arm_idle_sleep();
+    } else {
+        power_mgr_cancel_idle_sleep();
+    }
+
+    if (state == TASKHOG_STATE_SAFE_OFF) {
+        power_mgr_enter_deep_sleep();
+    } else if (state == TASKHOG_STATE_SYNC) {
         sync_engine_trigger();
     } else if (state == TASKHOG_STATE_IDLE &&
                (s_prev_state == TASKHOG_STATE_CONFIRM || s_prev_state == TASKHOG_STATE_BOOT)) {
@@ -121,6 +134,7 @@ void app_main(void)
                                                         NULL,
                                                         &s_state_bridge_instance));
     ESP_ERROR_CHECK(init_all_stubs());
+    power_mgr_set_pre_sleep_cb(pre_deep_sleep);
     sync_engine_set_done_cb(on_sync_done);
 
 #if EPD_CALIBRATION
@@ -144,7 +158,27 @@ void app_main(void)
     ESP_ERROR_CHECK(rec_worker_init());
     ESP_ERROR_CHECK(rec_button_init());
 
-    ESP_ERROR_CHECK(state_machine_post_event(TASKHOG_EVENT_BOOT_COMPLETE, NULL));
-    ESP_LOGI(TAG, "Taskhog firmware ready (state=%s)",
+    power_boot_action_t boot_action = power_mgr_boot_action();
+    if (boot_action == POWER_BOOT_ACTION_SLEEP_AGAIN) {
+        power_mgr_enter_deep_sleep();
+    }
+
+    switch (boot_action) {
+    case POWER_BOOT_ACTION_PROVISION:
+        ESP_ERROR_CHECK(state_machine_post_event(TASKHOG_EVENT_PROVISION_REQUEST, NULL));
+        break;
+    case POWER_BOOT_ACTION_FAST_REC:
+        ESP_ERROR_CHECK(state_machine_post_event(TASKHOG_EVENT_REC_PRESS, NULL));
+        break;
+    case POWER_BOOT_ACTION_SYNC_QUEUE:
+    case POWER_BOOT_ACTION_IDLE_SYNC:
+    default:
+        ESP_ERROR_CHECK(state_machine_post_event(TASKHOG_EVENT_BOOT_COMPLETE, NULL));
+        break;
+    }
+
+    ESP_LOGI(TAG, "Taskhog firmware ready (wake=%s action=%d state=%s)",
+             power_wake_cause_name(power_mgr_get_wake_cause()),
+             (int)boot_action,
              state_machine_state_name(state_machine_get()));
 }

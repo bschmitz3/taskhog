@@ -81,7 +81,7 @@ static void on_state_enter(taskhog_state_t state)
         }
         break;
     case TASKHOG_STATE_SAFE_OFF:
-        ESP_LOGW(TAG, "battery shutdown — deep sleep path (M6)");
+        ESP_LOGW(TAG, "battery shutdown — deep sleep");
         break;
     default:
         break;
